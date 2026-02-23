@@ -14,6 +14,7 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -24,6 +25,7 @@ import java.util.Set;
 
 public class BridgeFallsPlugin extends JavaPlugin {
     private boolean bridgeFallsEnabled = true;
+    private boolean fallingEnabled = true;
     private Set<Material> noRestBlocksVertical = new HashSet<>();
     private Set<Material> noRestBlocksHorizontal = new HashSet<>();
     private Set<Material> alwaysStableBlocks = new HashSet<>();
@@ -32,6 +34,9 @@ public class BridgeFallsPlugin extends JavaPlugin {
     private long fallDelayMillis = 60_000L;
     private int supportRadius = 2;
     private int topSupportRadius = 0;
+    private boolean allowPlacingUnstableBlocks = false;
+    private boolean fallingBlockDropItem = false;
+    private boolean fallingBlockHurtEntities = true;
     private FileConfiguration messagesConfig;
 
     private Color instabilityColorStart = Color.YELLOW;
@@ -55,6 +60,92 @@ public class BridgeFallsPlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new BridgeFallsListener(), this);
 
         PaperCommandManager manager = new PaperCommandManager(this);
+
+        // Complétions pour les listes de configuration
+        manager.getCommandCompletions().registerAsyncCompletion("bf_no_rest_vertical",
+                c -> getConfig().getStringList("no-rest-blocks-vertical"));
+        manager.getCommandCompletions().registerAsyncCompletion("bf_no_rest_horizontal",
+                c -> getConfig().getStringList("no-rest-blocks-horizontal"));
+        manager.getCommandCompletions().registerAsyncCompletion("bf_always_stable",
+                c -> getConfig().getStringList("always-stable-blocks"));
+        manager.getCommandCompletions().registerAsyncCompletion("bf_floating_support",
+                c -> getConfig().getStringList("floating-support-blocks"));
+        manager.getCommandCompletions().registerAsyncCompletion("bf_instability_colors",
+                c -> getConfig().getStringList("instability-colors"));
+
+        // Complétions pour les ajouts : tous les matériaux - ceux déjà dans la liste
+        manager.getCommandCompletions().registerAsyncCompletion("bf_no_rest_vertical_add", c -> {
+            List<String> existing = getConfig().getStringList("no-rest-blocks-vertical");
+            Set<String> existingUpper = new HashSet<>();
+            for (String s : existing) {
+                if (s != null) {
+                    existingUpper.add(s.toUpperCase());
+                }
+            }
+            List<String> result = new ArrayList<>();
+            for (Material m : Material.values()) {
+                String name = m.name();
+                if (!existingUpper.contains(name)) {
+                    result.add(name.toLowerCase());
+                }
+            }
+            return result;
+        });
+
+        manager.getCommandCompletions().registerAsyncCompletion("bf_no_rest_horizontal_add", c -> {
+            List<String> existing = getConfig().getStringList("no-rest-blocks-horizontal");
+            Set<String> existingUpper = new HashSet<>();
+            for (String s : existing) {
+                if (s != null) {
+                    existingUpper.add(s.toUpperCase());
+                }
+            }
+            List<String> result = new ArrayList<>();
+            for (Material m : Material.values()) {
+                String name = m.name();
+                if (!existingUpper.contains(name)) {
+                    result.add(name.toLowerCase());
+                }
+            }
+            return result;
+        });
+
+        manager.getCommandCompletions().registerAsyncCompletion("bf_always_stable_add", c -> {
+            List<String> existing = getConfig().getStringList("always-stable-blocks");
+            Set<String> existingUpper = new HashSet<>();
+            for (String s : existing) {
+                if (s != null) {
+                    existingUpper.add(s.toUpperCase());
+                }
+            }
+            List<String> result = new ArrayList<>();
+            for (Material m : Material.values()) {
+                String name = m.name();
+                if (!existingUpper.contains(name)) {
+                    result.add(name.toLowerCase());
+                }
+            }
+            return result;
+        });
+
+        manager.getCommandCompletions().registerAsyncCompletion("bf_floating_support_add", c -> {
+            List<String> existing = getConfig().getStringList("floating-support-blocks");
+            Set<String> existingUpper = new HashSet<>();
+            for (String s : existing) {
+                if (s != null) {
+                    existingUpper.add(s.toUpperCase());
+                }
+            }
+            List<String> result = new ArrayList<>();
+            for (Material m : Material.values()) {
+                String name = m.name();
+                if (!existingUpper.contains(name)) {
+                    result.add(name.toLowerCase());
+                }
+            }
+            return result;
+        });
+
         manager.registerCommand(new BridgeFallsCommand());
 
         // Tâche répétée :
@@ -97,15 +188,23 @@ public class BridgeFallsPlugin extends JavaPlugin {
                         continue;
                     }
 
-                    // Si le délai est écoulé, on marquera ce bloc pour qu'il tombe
-                    if (fallDelayMillis > 0 && now - createdAt >= fallDelayMillis) {
+                    // Si la chute est activée et que le délai est écoulé,
+                    // on marquera ce bloc pour qu'il tombe.
+                    if (fallingEnabled && fallDelayMillis > 0 && now - createdAt >= fallDelayMillis) {
                         toRemove.add(loc);
                         toFall.add(block);
                         continue;
                     }
 
                     // Toujours instable : on affiche/rafraîchit son contour de particules
-                    // Couleur selon le temps restant avant la chute (configurable) :
+                    if (!fallingEnabled) {
+                        // Mode "pause" : on continue juste à montrer les blocs instables
+                        // sans faire avancer leur chute.
+                        BridgeFallsListener.showRedOutline(block);
+                        continue;
+                    }
+
+                    // Chute active : couleur selon le temps restant avant la chute (configurable) :
                     // - 1er tiers : couleur 1
                     // - 2e tiers : couleur 2
                     // - 3e tiers : couleur 3
@@ -121,6 +220,8 @@ public class BridgeFallsPlugin extends JavaPlugin {
                             BridgeFallsListener.showColoredOutline(block, instabilityColorMiddle);
                         } else {
                             BridgeFallsListener.showColoredOutline(block, instabilityColorEnd);
+                            // Phase rouge : le bloc va bientôt s'effondrer, on joue un son d'alerte
+                            BridgeFallsListener.playRedPhaseWarningSound(block.getLocation());
                         }
                     }
                 }
@@ -203,6 +304,18 @@ public class BridgeFallsPlugin extends JavaPlugin {
 
     public int getTopSupportRadius() {
         return topSupportRadius;
+    }
+
+    public boolean isAllowPlacingUnstableBlocks() {
+        return allowPlacingUnstableBlocks;
+    }
+
+    public boolean isFallingBlockDropItem() {
+        return fallingBlockDropItem;
+    }
+
+    public boolean isFallingBlockHurtEntities() {
+        return fallingBlockHurtEntities;
     }
 
     public static void log(String message) {
@@ -318,7 +431,7 @@ public class BridgeFallsPlugin extends JavaPlugin {
         }
     }
 
-    private Color parseColor(String value) {
+    public Color parseColor(String value) {
         if (value == null) {
             return null;
         }
@@ -493,6 +606,43 @@ public class BridgeFallsPlugin extends JavaPlugin {
             topRadius = 0;
         }
         topSupportRadius = topRadius;
+
+        // Autoriser ou non la pose de blocs instables
+        allowPlacingUnstableBlocks = getConfig().getBoolean("allow-placing-unstable-blocks", false);
+
+        // Comportement des FallingBlock créés par le plugin
+        fallingBlockDropItem = getConfig().getBoolean("falling-block-drop-item", false);
+        fallingBlockHurtEntities = getConfig().getBoolean("falling-block-hurt-entities", true);
+
+        // Activation / désactivation temporaire de la chute des blocs instables
+        fallingEnabled = getConfig().getBoolean("falling-enabled", true);
+    }
+
+    public boolean isFallingEnabled() {
+        return fallingEnabled;
+    }
+
+    /**
+     * Active ou désactive la chute des blocs instables.
+     *
+     * Si on réactive alors que c'était désactivé, tous les timers
+     * des blocs instables sont remis à zéro et repartent depuis maintenant.
+     */
+    public void setFallingEnabled(boolean enabled) {
+        boolean wasEnabled = this.fallingEnabled;
+        this.fallingEnabled = enabled;
+
+        if (enabled && !wasEnabled) {
+            long now = System.currentTimeMillis();
+
+            synchronized (unstableBlocks) {
+                for (Map.Entry<Location, Long> entry : unstableBlocks.entrySet()) {
+                    entry.setValue(now);
+                }
+            }
+
+            saveUnstableBlocks();
+        }
     }
 
     private void loadUnstableBlocks() {

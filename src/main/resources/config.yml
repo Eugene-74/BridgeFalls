@@ -13,14 +13,6 @@ no-rest-blocks-horizontal:
   - fire
   - powder_snow
   - scaffolding
-  - acacia_leaves
-  - birch_leaves
-  - dark_oak_leaves
-  - jungle_leaves
-  - oak_leaves
-  - spruce_leaves
-  - mangrove_leaves
-  - cherry_leaves
 # Blocs qui tombent nativement (toujours stables pour le plugin)
   - sand
   - suspicious_sand
@@ -109,9 +101,24 @@ floating-support-blocks:
   - cherry_log
 
 fall-delay-minutes: 0.1
+
 # Couleurs des particules d'instabilité (dans l'ordre : début, milieu, fin)
 instability-colors:
   - yellow
   - orange
   - red
+
+# Si true, on peut poser des blocs sans support :
+#   - ils seront marqués comme instables
+#   - ils pourront ensuite tomber selon la logique du plugin
+# Si false, la pose d'un bloc instable est annulée.
+allow-placing-unstable-blocks: true
+
+# Comportement des blocs qui tombent (FallingBlock) créés par le plugin
+falling-block-drop-item: false
+falling-block-hurt-entities: true
+
+# Active / désactive temporairement la chute des blocs instables.
+# Quand remis sur true, tous les timers de chute repartent de zéro.
+falling-enabled: true
 

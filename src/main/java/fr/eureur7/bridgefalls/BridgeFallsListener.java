@@ -4,6 +4,7 @@ import org.bukkit.Material;
 import org.bukkit.Particle;
 import org.bukkit.Color;
 import org.bukkit.World;
+import org.bukkit.Sound;
 import org.bukkit.Location;
 import org.bukkit.entity.FallingBlock;
 import org.bukkit.block.Block;
@@ -50,8 +51,6 @@ public class BridgeFallsListener implements Listener {
         Block block = event.getBlock();
         Material placedType = block.getType();
 
-        player.sendMessage("§eVous avez placé un bloc de type : " + placedType.name().toLowerCase());
-
         // Certains blocs n'ont jamais besoin de structure
         if (plugin.isAlwaysStable(placedType)) {
             player.sendMessage(plugin.getMessage("block.always-stable-placed"));
@@ -60,24 +59,53 @@ public class BridgeFallsListener implements Listener {
 
         int radius = plugin.getSupportRadius();
 
-        Material belowType = block.getRelative(BlockFace.DOWN).getType();
-        boolean hasDirectSupport = hasDirectVerticalSupport(plugin, placedType, belowType);
+        Block belowBlock = block.getRelative(BlockFace.DOWN);
+        boolean hasDirectSupport = hasDirectVerticalSupport(belowBlock);
 
         boolean hasIndirectSupport = !hasDirectSupport && hasSupportWithinDistance(block, radius);
 
         boolean hasTopSupport = false;
         int topRadius = plugin.getTopSupportRadius();
 
-        player.sendMessage("§eSupport direct en dessous : " + (hasDirectSupport ? "oui" : "non"));
-        player.sendMessage("§eSupport horizontal : " + (hasIndirectSupport ? "oui" : "non"));
-        player.sendMessage("§eRayon de support topRadius : " + topRadius);
-
         if (!hasDirectSupport && !hasIndirectSupport && topRadius > 0) {
             hasTopSupport = hasTopSupportWithinDistance(block, topRadius);
-            player.sendMessage("§eSupport vertical supérieur : " + (hasTopSupport ? "oui" : "non"));
+        }
+
+        // Messages d'information détaillés uniquement si debug=true dans la config
+        if (plugin.getConfig().getBoolean("debug", false)) {
+            Map<String, String> infoPlaceholders = new HashMap<>();
+            infoPlaceholders.put("block", placedType.name().toLowerCase());
+            infoPlaceholders.put("supportRadius", String.valueOf(radius));
+            infoPlaceholders.put("topSupportRadius", String.valueOf(topRadius));
+            infoPlaceholders.put("direct", hasDirectSupport ? "oui" : "non");
+            infoPlaceholders.put("horizontal", hasIndirectSupport ? "oui" : "non");
+            infoPlaceholders.put("top", hasTopSupport ? "oui" : "non");
+
+            player.sendMessage(plugin.getMessage("block.place.info.block", infoPlaceholders));
+            player.sendMessage(plugin.getMessage("block.place.info.direct", infoPlaceholders));
+            player.sendMessage(plugin.getMessage("block.place.info.horizontal", infoPlaceholders));
+            if (topRadius > 0) {
+                player.sendMessage(plugin.getMessage("block.place.info.top", infoPlaceholders));
+            }
         }
 
         if (!hasDirectSupport && !hasIndirectSupport && !hasTopSupport) {
+            // Selon la config, soit on interdit la pose de blocs instables,
+            // soit on les autorise mais ils deviennent instables.
+            playUnstableDenySound(player);
+
+            if (plugin.isAllowPlacingUnstableBlocks()) {
+                plugin.addUnstableBlock(block.getLocation());
+
+                Map<String, String> ph = new HashMap<>();
+                ph.put("block", placedType.name().toLowerCase());
+                double minutes = plugin.getConfig().getDouble("fall-delay-minutes", 1.0D);
+                ph.put("minutes", String.valueOf(minutes));
+
+                player.sendMessage(plugin.getMessage("block.place.marked-unstable", ph));
+                return;
+            }
+
             block.setType(Material.AIR);
             event.setCancelled(true);
             Material below = block.getRelative(BlockFace.DOWN).getType();
@@ -140,10 +168,9 @@ public class BridgeFallsListener implements Listener {
             return false;
         }
 
-        // Support direct par en dessous (en tenant compte des blocs flottants)
-        Material belowType = block.getRelative(BlockFace.DOWN).getType();
-        boolean hasDirectSupport = hasDirectVerticalSupport(plugin, block.getType(), belowType);
-        if (hasDirectSupport) {
+        // Support direct par en dessous (en tenant compte des blocs flottants
+        // et des "vrais" piliers qui vont jusqu'au sol)
+        if (hasDirectVerticalSupport(block)) {
             return true;
         }
 
@@ -176,8 +203,7 @@ public class BridgeFallsListener implements Listener {
                 continue;
             }
 
-            Material belowType = current.getRelative(BlockFace.DOWN).getType();
-            if (hasDirectVerticalSupport(BridgeFallsPlugin.getInstance(), current.getType(), belowType)) {
+            if (hasDirectVerticalSupport(current)) {
                 return true;
             }
 
@@ -261,8 +287,7 @@ public class BridgeFallsListener implements Listener {
             // 1 pas horizontal pour éviter de compter le bloc
             // d'origine comme seul support.
             if (distance > 0) {
-                Material belowType = current.getRelative(BlockFace.DOWN).getType();
-                if (hasDirectVerticalSupport(BridgeFallsPlugin.getInstance(), current.getType(), belowType)) {
+                if (hasDirectVerticalSupport(current)) {
                     return true;
                 }
             }
@@ -345,14 +370,54 @@ public class BridgeFallsListener implements Listener {
         return false;
     }
 
-    private static boolean hasDirectVerticalSupport(BridgeFallsPlugin plugin, Material blockType, Material belowType) {
-        // Cas spécial : certains blocs "flottants" sont autorisés à reposer sur l'eau
+    private static boolean hasDirectVerticalSupport(Block block) {
+        BridgeFallsPlugin plugin = BridgeFallsPlugin.getInstance();
+
+        Material blockType = block.getType();
+
+        Block below = block.getRelative(BlockFace.DOWN);
+        Material belowType = below.getType();
+
         if (plugin.isFloatingSupport(blockType) && belowType == Material.WATER) {
             return true;
         }
 
-        // Sinon, on applique la règle standard basée sur no-rest-blocks-vertical
-        return !plugin.isNoRestBlockVertical(belowType);
+        if (!plugin.isNoRestBlockVertical(belowType) && belowType != Material.AIR) {
+            return true;
+        }
+
+        int maxDepth = plugin.getTopSupportRadius();
+        if (maxDepth <= 0) {
+            // Fallback : comportement standard si le rayon vertical est désactivé
+            return !plugin.isNoRestBlockVertical(belowType) && belowType != Material.AIR;
+        }
+
+        // On demande un pilier d'épaisseur 2 * top-support-radius
+        int requiredDepth = maxDepth * 2;
+
+        Block current = block;
+        for (int i = 0; i < requiredDepth; i++) {
+            Block belowBlock = current.getRelative(BlockFace.DOWN);
+            Material mat = belowBlock.getType();
+
+            // Si on atteint un bloc flottant reposant sur l'eau, on considère
+            // que le pilier est valide, même si on n'a pas encore parcouru
+            // toute la profondeur requise.
+            if (plugin.isFloatingSupport(mat)
+                    && belowBlock.getRelative(BlockFace.DOWN).getType() == Material.WATER) {
+                return true;
+            }
+
+            if (mat == Material.AIR || plugin.isNoRestBlockVertical(mat)) {
+                return false;
+            }
+
+            current = belowBlock;
+        }
+
+        // On a trouvé une colonne continue suffisante :
+        // on considère cela comme un pilier.
+        return true;
     }
 
     private static void checkAndHighlightUnsupportedBlocksAround(Block origin, int radius, Player player) {
@@ -377,10 +442,12 @@ public class BridgeFallsListener implements Listener {
                         Location loc = candidate.getLocation();
                         if (!alreadyUnstable.contains(loc)) {
                             newlyUnstableCount++;
+                            playUnstableDenySound(loc);
                         }
 
                         plugin.addUnstableBlock(loc);
                         showRedOutline(candidate);
+                        playUnstableDenySound(candidate.getLocation());
                     }
                 }
             }
@@ -390,6 +457,7 @@ public class BridgeFallsListener implements Listener {
             Map<String, String> placeholders = new HashMap<>();
             placeholders.put("count", String.valueOf(newlyUnstableCount));
             placeholders.put("plural", newlyUnstableCount > 1 ? "s" : "");
+            placeholders.put("radius", String.valueOf(radius));
             player.sendMessage(plugin.getMessage("break.made-unstable", placeholders));
         }
     }
@@ -444,19 +512,40 @@ public class BridgeFallsListener implements Listener {
 
         world.playSound(block.getLocation(), org.bukkit.Sound.BLOCK_WOOD_BREAK, 1.0F, 1.0F);
 
-        world.spawn(
-                block.getLocation().add(0.5, 0, 0.5),
-                FallingBlock.class,
-                fb -> {
-                    fb.setBlockData(block.getBlockData());
-                    fb.setDropItem(false);
-                    fb.setHurtEntities(false);
-                });
+        BridgeFallsPlugin plugin = BridgeFallsPlugin.getInstance();
+
+        world.spawn(block.getLocation().add(0.5, 0, 0.5), FallingBlock.class, fb -> {
+            fb.setBlockData(block.getBlockData());
+            fb.setDropItem(plugin.isFallingBlockDropItem());
+            fb.setHurtEntities(plugin.isFallingBlockHurtEntities());
+        });
 
         block.setType(Material.AIR);
 
         int radius = BridgeFallsPlugin.getInstance().getSupportRadius();
+
         // pas de joueur associé ici, on ne spamme pas de message
         checkAndHighlightUnsupportedBlocksAround(block, radius, null);
+    }
+
+    private static void playUnstableDenySound(Player player) {
+        // Petit son "refus" quand un bloc devient instable
+        player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 1.0F, 0.8F);
+    }
+
+    private static void playUnstableDenySound(Location loc) {
+        if (loc == null || loc.getWorld() == null) {
+            return;
+        }
+        // Petit son "refus" quand un bloc devient instable
+        loc.getWorld().playSound(loc, Sound.BLOCK_NOTE_BLOCK_BASS, 0.7F, 0.8F);
+    }
+
+    public static void playRedPhaseWarningSound(Location loc) {
+        if (loc == null || loc.getWorld() == null) {
+            return;
+        }
+        // Son d'alerte discret autour d'un bloc très instable (phase rouge)
+        loc.getWorld().playSound(loc, Sound.BLOCK_NOTE_BLOCK_BELL, 0.5F, 1.8F);
     }
 }

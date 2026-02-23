@@ -1,13 +1,20 @@
 messages:
-  block.always-stable-placed: "§aBloc toujours stable placé sans vérification de structure."
+  block.always-stable-placed: "§aBloc marqué comme toujours stable (liste always-stable-blocks de la config) placé sans vérification de structure."
   block.height-ok: "§aHauteur du bloc: {height}"
   block.place.error.header: "Impossible de placer {block} en {x}, {y}, {z} : "
-  block.place.error.no-below: "aucun bloc en dessous (vide)."
-  block.place.error.below-no-support: "le bloc en dessous ({below}) ne peut pas servir de support vertical."
-  block.place.error.below-invalid: "le bloc en dessous ({below}) n'offre pas un support valide."
-  block.place.error.no-horizontal: " Aucun bloc structurant n'est connecté à moins de {radius} blocs horizontalement pour soutenir ce bloc."
-  block.place.error.weak-horizontal: " Les blocs connectés horizontalement autour ne sont pas eux-mêmes correctement supportés en dessous."
-  break.made-unstable: "§cTu as rendu {count} bloc{plural} instable{plural}."
+  block.place.error.no-below: "aucun bloc en dessous (vide) pour supporter ce bloc."
+  block.place.error.below-no-support: "le bloc en dessous ({below}) est dans la liste no-rest-blocks-vertical de la config et ne peut pas servir de support vertical."
+  block.place.error.below-invalid: "le bloc en dessous ({below}) n'offre pas un support valide avec les paramètres actuels."
+  block.place.error.no-horizontal: " Aucun bloc structurant n'est connecté à moins de {radius} blocs horizontalement (support-radius de la config) pour soutenir ce bloc."
+  block.place.error.weak-horizontal: " Les blocs connectés horizontalement autour ne sont pas eux-mêmes correctement supportés verticalement."
+  break.made-unstable: "§cTu as rendu {count} bloc{plural} instable{plural} dans un rayon de {radius} blocs (support-radius actuel)."
+
+  block.place.info.block: "§eBloc placé: §f{block}§e. (support-radius={supportRadius}, top-support-radius={topSupportRadius})"
+  block.place.info.direct: "§eSupport vertical direct sous le bloc: §f{direct}§e."
+  block.place.info.horizontal: "§eSupport horizontal dans un rayon de {supportRadius} blocs: §f{horizontal}§e."
+  block.place.info.top: "§eSupport par le haut dans un rayon vertical de {topSupportRadius} blocs: §f{top}§e."
+
+  block.place.marked-unstable: "§eAucun support trouvé : {block} est posé mais marqué comme instable (allow-placing-unstable-blocks=true, chute dans ~{minutes} minute(s))."
 
   command.reload: "§aConfiguration rechargée."
   command.enable: "§aBridgeFalls est maintenant activé."
@@ -20,3 +27,16 @@ messages:
   command.list-struct.horizontal-info: "§aBlocs structurants horizontalement : §fTout bloc SOLIDE qui n'est pas dans no-rest-blocks-horizontal et qui n'est pas de l'air."
   command.list-struct.nonstruct-vertical: "§7Blocs explicitement non structurants verticaux: §f{list}"
   command.list-struct.nonstruct-horizontal: "§7Blocs explicitement non structurants horizontaux: §f{list}"
+
+  # Configuration à chaud
+  command.config.boolean-updated: "§aOption {key} est maintenant §f{value}§a."
+  command.config.boolean-invalid: "§cValeur invalide pour {key}. Utilise true, false ou rien pour basculer."
+
+  command.config.material-invalid: "§cMatériau inconnu: {value}."
+  command.config.color-invalid: "§cCouleur invalide: {value}."
+
+  command.config.list-added: "§aAjouté §f{value} §aà la liste §f{key}§a."
+  command.config.list-already: "§e{value} est déjà dans la liste §f{key}§e."
+  command.config.list-removed: "§aSupprimé §f{value} §ade la liste §f{key}§a."
+  command.config.list-not-found: "§c{value} n'est pas dans la liste §f{key}§c."
+  command.config.list-current: "§eListe §f{key}§e : §f{list}"
