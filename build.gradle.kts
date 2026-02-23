@@ -11,7 +11,7 @@ plugins {
 }
 
 group="fr.eureur7.bridgefalls"
-version="0.0.1"
+version="1.0.0"
 description="Disable some items."
 java.sourceCompatibility = JavaVersion.VERSION_21
 var mainMinecraftVersion = "1.21.11"
@@ -186,7 +186,7 @@ hangarPublish { // ./gradlew publishPluginPublicationToHangar
         )
         platforms {
             register(io.papermc.hangarpublishplugin.model.Platforms.PAPER) {
-                url = "https://github.com/HydrolienF/"+project.name+"/releases/download/"+versionString+"/"+project.name+"-"+versionString+".jar"
+                url = "https://github.com/Eugene-74/"+project.name+"/releases/download/"+versionString+"/"+project.name+"-"+versionString+".jar"
 
                 // Set platform versions from gradle.properties file
                 val versions: List<String> = supportedMinecraftVersions.replace(" ", "").split(",")
