@@ -1,4 +1,4 @@
-debug: false
+debug: true
 
 no-rest-blocks-vertical:
   - lava

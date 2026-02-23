@@ -59,8 +59,8 @@ public class BridgeFallsListener implements Listener {
 
         int radius = plugin.getSupportRadius();
 
-        Block belowBlock = block.getRelative(BlockFace.DOWN);
-        boolean hasDirectSupport = hasDirectVerticalSupport(belowBlock);
+        // On vérifie le support vertical du bloc lui-même (pas du bloc en dessous)
+        boolean hasDirectSupport = hasDirectVerticalSupport(block);
 
         boolean hasIndirectSupport = !hasDirectSupport && hasSupportWithinDistance(block, radius);
 
@@ -89,6 +89,7 @@ public class BridgeFallsListener implements Listener {
             }
         }
 
+        // On refuse si le bloc n'a aucun support (vertical / horizontal / haut).
         if (!hasDirectSupport && !hasIndirectSupport && !hasTopSupport) {
             // Selon la config, soit on interdit la pose de blocs instables,
             // soit on les autorise mais ils deviennent instables.
@@ -150,7 +151,6 @@ public class BridgeFallsListener implements Listener {
         if (plugin.isAlwaysStable(block.getType())) {
             return true;
         }
-
         if (isBlockSupportedByBelowOrHorizontal(block)) {
             return true;
         }
@@ -382,41 +382,18 @@ public class BridgeFallsListener implements Listener {
             return true;
         }
 
-        if (!plugin.isNoRestBlockVertical(belowType) && belowType != Material.AIR) {
-            return true;
+        // Règle simple demandée :
+        // si un bloc a un bloc en dessous (non-air et
+        // qui n'est pas dans no-rest-blocks-vertical),
+        // alors il est verticalement stable.
+        if (belowType == Material.AIR) {
+            return false;
         }
 
-        int maxDepth = plugin.getTopSupportRadius();
-        if (maxDepth <= 0) {
-            // Fallback : comportement standard si le rayon vertical est désactivé
-            return !plugin.isNoRestBlockVertical(belowType) && belowType != Material.AIR;
+        if (plugin.isNoRestBlockVertical(belowType)) {
+            return false;
         }
 
-        // On demande un pilier d'épaisseur 2 * top-support-radius
-        int requiredDepth = maxDepth * 2;
-
-        Block current = block;
-        for (int i = 0; i < requiredDepth; i++) {
-            Block belowBlock = current.getRelative(BlockFace.DOWN);
-            Material mat = belowBlock.getType();
-
-            // Si on atteint un bloc flottant reposant sur l'eau, on considère
-            // que le pilier est valide, même si on n'a pas encore parcouru
-            // toute la profondeur requise.
-            if (plugin.isFloatingSupport(mat)
-                    && belowBlock.getRelative(BlockFace.DOWN).getType() == Material.WATER) {
-                return true;
-            }
-
-            if (mat == Material.AIR || plugin.isNoRestBlockVertical(mat)) {
-                return false;
-            }
-
-            current = belowBlock;
-        }
-
-        // On a trouvé une colonne continue suffisante :
-        // on considère cela comme un pilier.
         return true;
     }
 
