@@ -67,30 +67,25 @@ public class BridgeFallsListener implements Listener {
         if (!hasDirectSupport && !hasIndirectSupport && topRadius > 0) {
             hasTopSupport = hasTopSupportWithinDistance(block, topRadius);
         }
+        int anchorRadius = plugin.getAnchorSupportRadius();
+        boolean hasAnchor = hasAnchor(block, anchorRadius);
 
-        boolean hasAnchor = hasAnchor(block, radius);
+        boolean hasStructuralSupport = hasDirectSupport || hasIndirectSupport || hasTopSupport;
 
-        if (!hasDirectSupport && !hasIndirectSupport && !hasTopSupport || !hasAnchor) {
+        if (!hasAnchor || !hasStructuralSupport) {
             playUnstableDenySound(player);
 
             if (plugin.isAllowPlacingUnstableBlocks()) {
                 plugin.addUnstableBlock(block.getLocation());
 
-                Map<String, String> ph = new HashMap<>();
-                ph.put("block", placedType.name().toLowerCase());
-                double minutes = plugin.getConfig().getDouble("fall-delay-minutes", 1.0D);
-                ph.put("minutes", String.valueOf(minutes));
-
-                player.sendMessage(plugin.getMessage("block.place.marked-unstable", ph));
-
                 BridgeFallsPlugin.log("Player : " + player.getName() + " placed block " + block.getType() + " at "
                         + block.getLocation() + " witch is unstable");
 
-                return;
+            } else {
+                block.setType(Material.AIR);
+                event.setCancelled(true);
             }
 
-            block.setType(Material.AIR);
-            event.setCancelled(true);
             Material below = block.getRelative(BlockFace.DOWN).getType();
 
             Map<String, String> headerPlaceholders = new HashMap<>();
@@ -104,40 +99,61 @@ public class BridgeFallsListener implements Listener {
             Map<String, String> belowPlaceholder = new HashMap<>();
             belowPlaceholder.put("below", below.name().toLowerCase());
 
-            if (below == Material.AIR) {
-                reasonCore = plugin.getMessage("block.place.error.no-below");
-                BridgeFallsPlugin
-                        .log("Player : " + player.getName() + " tried to place block " + block.getType() + " at "
-                                + block.getLocation() + " but there is no block below");
-            } else if (plugin.isNoRestBlockVertical(below)) {
-                reasonCore = plugin.getMessage("block.place.error.below-no-support", belowPlaceholder);
-                BridgeFallsPlugin
-                        .log("Player : " + player.getName() + " tried to place block " + block.getType() + " at "
-                                + block.getLocation() + " but the block below is not a valid support");
+            if (!hasAnchor) {
+                Map<String, String> anchorPlaceholder = new HashMap<>();
+                anchorPlaceholder.put("radius", String.valueOf(anchorRadius));
+                reasonCore = plugin.getMessage("block.place.error.no-anchor", anchorPlaceholder);
+                BridgeFallsPlugin.log("Player : " + player.getName() + " tried to place block " + block.getType()
+                        + " at " + block.getLocation() + " but no anchor support was found");
             } else {
-                reasonCore = plugin.getMessage("block.place.error.below-invalid", belowPlaceholder);
-                BridgeFallsPlugin
-                        .log("Player : " + player.getName() + " tried to place block " + block.getType() + " at "
-                                + block.getLocation() + " but the block below is not providing support");
+                if (below == Material.AIR) {
+                    reasonCore = plugin.getMessage("block.place.error.no-below");
+                    BridgeFallsPlugin
+                            .log("Player : " + player.getName() + " tried to place block " + block.getType() + " at "
+                                    + block.getLocation() + " but there is no block below");
+                } else if (plugin.isNoRestBlockVertical(below)) {
+                    reasonCore = plugin.getMessage("block.place.error.below-no-support", belowPlaceholder);
+                    BridgeFallsPlugin
+                            .log("Player : " + player.getName() + " tried to place block " + block.getType() + " at "
+                                    + block.getLocation() + " but the block below is not a valid support");
+                } else {
+                    reasonCore = plugin.getMessage("block.place.error.below-invalid", belowPlaceholder);
+                    BridgeFallsPlugin
+                            .log("Player : " + player.getName() + " tried to place block " + block.getType() + " at "
+                                    + block.getLocation() + " but the block below is not providing support");
+                }
             }
 
-            boolean hasHorizontalStructure = hasHorizontalStructureWithinDistance(block, radius);
-            String reasonHorizontal;
-            if (!hasHorizontalStructure) {
-                Map<String, String> radiusPlaceholder = new HashMap<>();
-                radiusPlaceholder.put("radius", String.valueOf(radius));
-                reasonHorizontal = plugin.getMessage("block.place.error.no-horizontal", radiusPlaceholder);
-                BridgeFallsPlugin
-                        .log("Player : " + player.getName() + " tried to place block " + block.getType() + " at "
-                                + block.getLocation() + " but there is no horizontal support within radius");
-            } else {
-                reasonHorizontal = plugin.getMessage("block.place.error.weak-horizontal");
-                BridgeFallsPlugin
-                        .log("Player : " + player.getName() + " tried to place block " + block.getType() + " at "
-                                + block.getLocation() + " but there is only weak horizontal support within radius");
+            String reasonHorizontal = "";
+            if (!hasStructuralSupport) {
+                boolean hasHorizontalStructure = hasHorizontalStructureWithinDistance(block, radius);
+                if (!hasHorizontalStructure) {
+                    Map<String, String> radiusPlaceholder = new HashMap<>();
+                    radiusPlaceholder.put("radius", String.valueOf(radius));
+                    reasonHorizontal = plugin.getMessage("block.place.error.no-horizontal", radiusPlaceholder);
+                    BridgeFallsPlugin
+                            .log("Player : " + player.getName() + " tried to place block " + block.getType() + " at "
+                                    + block.getLocation() + " but there is no horizontal support within radius");
+                } else {
+                    reasonHorizontal = plugin.getMessage("block.place.error.weak-horizontal");
+                    BridgeFallsPlugin
+                            .log("Player : " + player.getName() + " tried to place block " + block.getType() + " at "
+                                    + block.getLocation() + " but there is only weak horizontal support within radius");
+                }
             }
 
-            player.sendMessage("§c" + reasonPrefix + reasonCore + reasonHorizontal);
+            String delayInfo = "";
+            if (plugin.isAllowPlacingUnstableBlocks()) {
+                Map<String, String> ph = new HashMap<>();
+                ph.put("block", placedType.name().toLowerCase());
+                double minutes = plugin.getConfig().getDouble("fall-delay-minutes", 1.0D);
+                ph.put("minutes", String.valueOf(minutes));
+                delayInfo = " " + plugin.getMessage("block.place.marked-unstable", ph);
+            } else {
+                delayInfo = "";
+            }
+
+            player.sendMessage("§c" + reasonPrefix + reasonCore + reasonHorizontal + delayInfo);
         }
     }
 
@@ -147,6 +163,7 @@ public class BridgeFallsListener implements Listener {
         if (plugin.isAlwaysStable(block.getType())) {
             return true;
         }
+
         if (isBlockSupportedByBelowOrHorizontal(block)) {
             return true;
         }
@@ -380,8 +397,19 @@ public class BridgeFallsListener implements Listener {
         return true;
     }
 
-    private static boolean hasAnchor(Block block, int radius) {
-        BridgeFallsPlugin plugin = BridgeFallsPlugin.getInstance();
+    static boolean hasAnchor(Block block, int radius) {
+        if (block == null || block.getType() == Material.AIR) {
+            return false;
+        }
+
+        if (radius <= 0) {
+            return true;
+        }
+
+        int originX = block.getX();
+        int originY = block.getY();
+        int originZ = block.getZ();
+        int radiusSquared = radius * radius;
 
         BlockFace[] faces = new BlockFace[] {
                 BlockFace.NORTH,
@@ -393,19 +421,19 @@ public class BridgeFallsListener implements Listener {
         };
 
         Queue<Block> toVisit = new LinkedList<>();
-        Map<Block, Integer> distances = new HashMap<>();
         Set<Block> visited = new HashSet<>();
 
         toVisit.add(block);
-        distances.put(block, 0);
         visited.add(block);
 
         while (!toVisit.isEmpty()) {
             Block current = toVisit.poll();
-            int distance = distances.get(current);
 
-            // Si on a dépassé le rayon, on a trouvé une sortie
-            if (distance > radius) {
+            int dx = current.getX() - originX;
+            int dy = current.getY() - originY;
+            int dz = current.getZ() - originZ;
+
+            if ((dx * dx) + (dy * dy) + (dz * dz) > radiusSquared) {
                 return true;
             }
 
@@ -416,13 +444,12 @@ public class BridgeFallsListener implements Listener {
                     continue;
                 }
 
-                visited.add(next);
-
-                if (next.getType() != Material.AIR &&
-                        plugin.isHorizontalSupportProvider(next.getType())) {
-                    toVisit.add(next);
-                    distances.put(next, distance + 1);
+                if (next.getType() == Material.AIR) {
+                    continue;
                 }
+
+                visited.add(next);
+                toVisit.add(next);
             }
         }
 
@@ -433,7 +460,7 @@ public class BridgeFallsListener implements Listener {
         BridgeFallsPlugin plugin = BridgeFallsPlugin.getInstance();
         Set<Location> alreadyUnstable = plugin.getUnstableBlocks();
         int newlyUnstableCount = 0;
-
+        radius = radius / 2;
         for (int dx = -radius; dx <= radius; dx++) {
             for (int dy = -radius; dy <= radius; dy++) {
                 for (int dz = -radius; dz <= radius; dz++) {
@@ -457,6 +484,24 @@ public class BridgeFallsListener implements Listener {
                         plugin.addUnstableBlock(loc);
                         showRedOutline(candidate);
                         playUnstableDenySound(candidate.getLocation());
+                    } else {
+                        int anchorRadius = plugin.getAnchorSupportRadius();
+                        if (dx <= -anchorRadius || dx >= anchorRadius || dy <= -anchorRadius || dy >= anchorRadius
+                                || dz <= -anchorRadius || dz >= anchorRadius) {
+                            continue;
+                        }
+                        boolean hasAnchor = hasAnchor(candidate, anchorRadius);
+                        if (!hasAnchor) {
+                            Location loc = candidate.getLocation();
+                            if (!alreadyUnstable.contains(loc)) {
+                                newlyUnstableCount++;
+                                playUnstableDenySound(loc);
+                            }
+
+                            plugin.addUnstableBlock(loc);
+                            showRedOutline(candidate);
+                            playUnstableDenySound(candidate.getLocation());
+                        }
                     }
                 }
             }
@@ -487,7 +532,8 @@ public class BridgeFallsListener implements Listener {
         double maxY = minY + 1.0;
         double maxZ = minZ + 1.0;
 
-        double step = 0.25;
+        int particlesPerEdge = 1;
+        double step = 1.0 / particlesPerEdge;
 
         for (double x = minX; x <= maxX; x += step) {
             world.spawnParticle(Particle.DUST, x, minY, minZ, 1, 0, 0, 0, 0, dust);

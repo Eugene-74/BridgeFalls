@@ -5,7 +5,7 @@ messages:
   block.place.error.no-below: "no block below (void) to support this block."
   block.place.error.below-no-support: "the block below ({below}) is in the no-rest-blocks-vertical list in the config and cannot serve as vertical support."
   block.place.error.below-invalid: "the block below ({below}) does not provide valid support with the current settings."
-  block.place.error.no-anchor: "[red] no anchor support found within {radius} blocks."
+  block.place.error.no-anchor: " no anchor support found within {radius} blocks."
   block.place.error.no-horizontal: "No structural block is connected within {radius} blocks horizontally (current support-radius) to support this block."
   block.place.error.weak-horizontal: "The horizontally connected blocks around are not themselves properly supported vertically."
   break.made-unstable: "[RED] You made {count} block{plural} unstable within a radius of {radius} blocks (current support-radius)."
@@ -31,6 +31,8 @@ messages:
 
   command.config.boolean-updated: "[GREEN] Option {key} is now {value}."
   command.config.boolean-invalid: "[RED] Invalid value for {key}. Use true, false or nothing to toggle."
+  command.config.number-updated: "[GREEN] Option {key} is now {value}."
+  command.config.number-invalid: "[RED] Invalid numeric value for {key}: {value}. Minimum is {min}."
 
   command.config.material-invalid: "[RED] Unknown material: {value}."
   command.config.color-invalid: "[RED] Invalid color: {value}."

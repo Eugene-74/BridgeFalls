@@ -13,6 +13,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.IntSupplier;
 import java.util.stream.Collectors;
 
 @CommandAlias("bridgeFallsCommand|bfCommand|bf|bridgeFalls")
@@ -64,6 +65,63 @@ public class BridgeFallsCommand extends BaseCommand {
     @CommandCompletion("enable|disable")
     public void onConfigFallingEnabled(CommandSender sender, @Optional String value) {
         handleBooleanConfig(sender, "falling-block", "falling-block", value);
+    }
+
+    @Subcommand("config time-to-check")
+    @CommandCompletion("20|40|100|200")
+    public void onConfigTimeToCheck(CommandSender sender, String value) {
+        BridgeFallsPlugin plugin = BridgeFallsPlugin.getInstance();
+
+        long ticks;
+        try {
+            ticks = Long.parseLong(value);
+        } catch (NumberFormatException e) {
+            Map<String, String> ph = new HashMap<>();
+            ph.put("key", "time-to-check");
+            ph.put("value", value);
+            ph.put("min", "1");
+            sender.sendMessage(plugin.getMessage("command.config.number-invalid", ph));
+            return;
+        }
+
+        if (ticks < 1L) {
+            Map<String, String> ph = new HashMap<>();
+            ph.put("key", "time-to-check");
+            ph.put("value", value);
+            ph.put("min", "1");
+            sender.sendMessage(plugin.getMessage("command.config.number-invalid", ph));
+            return;
+        }
+
+        plugin.getConfig().set("time-to-check", ticks);
+        plugin.saveConfig();
+        plugin.reloadConfig();
+
+        Map<String, String> ph = new HashMap<>();
+        ph.put("key", "time-to-check");
+        ph.put("value", String.valueOf(plugin.getTimeToCheckTicks()));
+        sender.sendMessage(plugin.getMessage("command.config.number-updated", ph));
+    }
+
+    @Subcommand("config support-radius")
+    @CommandCompletion("1|2|4|8|16|32")
+    public void onConfigSupportRadius(CommandSender sender, String value) {
+        handleIntConfig(sender, "support-radius", "support-radius", value, 1,
+                () -> BridgeFallsPlugin.getInstance().getSupportRadius());
+    }
+
+    @Subcommand("config top-support-radius")
+    @CommandCompletion("0|1|2|4|8|16")
+    public void onConfigTopSupportRadius(CommandSender sender, String value) {
+        handleIntConfig(sender, "top-support-radius", "top-support-radius", value, 0,
+                () -> BridgeFallsPlugin.getInstance().getTopSupportRadius());
+    }
+
+    @Subcommand("config anchor-support-radius")
+    @CommandCompletion("1|2|3|4|5|8")
+    public void onConfigAnchorSupportRadius(CommandSender sender, String value) {
+        handleIntConfig(sender, "anchor-support-radius", "anchor-support-radius", value, 1,
+                () -> BridgeFallsPlugin.getInstance().getAnchorSupportRadius());
     }
 
     @Subcommand("config no-rest-vertical list")
@@ -177,6 +235,41 @@ public class BridgeFallsCommand extends BaseCommand {
         ph.put("key", displayKey);
         ph.put("value", String.valueOf(newValue));
         sender.sendMessage(plugin.getMessage("command.config.boolean-updated", ph));
+    }
+
+    private void handleIntConfig(CommandSender sender, String path, String displayKey, String value, int min,
+            IntSupplier runtimeValueSupplier) {
+        BridgeFallsPlugin plugin = BridgeFallsPlugin.getInstance();
+
+        int parsed;
+        try {
+            parsed = Integer.parseInt(value);
+        } catch (NumberFormatException e) {
+            Map<String, String> ph = new HashMap<>();
+            ph.put("key", displayKey);
+            ph.put("value", value);
+            ph.put("min", String.valueOf(min));
+            sender.sendMessage(plugin.getMessage("command.config.number-invalid", ph));
+            return;
+        }
+
+        if (parsed < min) {
+            Map<String, String> ph = new HashMap<>();
+            ph.put("key", displayKey);
+            ph.put("value", value);
+            ph.put("min", String.valueOf(min));
+            sender.sendMessage(plugin.getMessage("command.config.number-invalid", ph));
+            return;
+        }
+
+        plugin.getConfig().set(path, parsed);
+        plugin.saveConfig();
+        plugin.reloadConfig();
+
+        Map<String, String> ph = new HashMap<>();
+        ph.put("key", displayKey);
+        ph.put("value", String.valueOf(runtimeValueSupplier.getAsInt()));
+        sender.sendMessage(plugin.getMessage("command.config.number-updated", ph));
     }
 
     private void handleMaterialListAdd(CommandSender sender, String path, String displayKey, String materialName) {

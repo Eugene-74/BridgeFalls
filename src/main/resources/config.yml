@@ -1,10 +1,12 @@
 debug: false
 
 
-support-radius: 5
-top-support-radius: 2
+support-radius: 32
+top-support-radius: 16
+anchor-support-radius: 5
 
 fall-delay-minutes: 0.1
+time-to-check: 200 # ticks
 
 # Instability particle colors (order: start, middle, end)
 instability-colors:
