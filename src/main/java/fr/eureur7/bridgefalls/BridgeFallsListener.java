@@ -48,8 +48,9 @@ public class BridgeFallsListener implements Listener {
         BridgeFallsPlugin plugin = BridgeFallsPlugin.getInstance();
 
         Block block = event.getBlock();
-        int blockHeight = block.getY();
         Material placedType = block.getType();
+
+        player.sendMessage("§eVous avez placé un bloc de type : " + placedType.name().toLowerCase());
 
         // Certains blocs n'ont jamais besoin de structure
         if (plugin.isAlwaysStable(placedType)) {
@@ -59,8 +60,8 @@ public class BridgeFallsListener implements Listener {
 
         int radius = plugin.getSupportRadius();
 
-        boolean hasDirectSupport = !plugin
-                .isNoRestBlockVertical(block.getRelative(BlockFace.DOWN).getType());
+        Material belowType = block.getRelative(BlockFace.DOWN).getType();
+        boolean hasDirectSupport = hasDirectVerticalSupport(plugin, placedType, belowType);
 
         boolean hasIndirectSupport = !hasDirectSupport && hasSupportWithinDistance(block, radius);
 
@@ -111,10 +112,6 @@ public class BridgeFallsListener implements Listener {
             }
 
             player.sendMessage("§c" + reasonPrefix + reasonCore + reasonHorizontal);
-        } else {
-            Map<String, String> placeholders = new HashMap<>();
-            placeholders.put("height", String.valueOf(blockHeight));
-            player.sendMessage(plugin.getMessage("block.height-ok", placeholders));
         }
     }
 
@@ -143,9 +140,9 @@ public class BridgeFallsListener implements Listener {
             return false;
         }
 
-        // Support direct par en dessous
+        // Support direct par en dessous (en tenant compte des blocs flottants)
         Material belowType = block.getRelative(BlockFace.DOWN).getType();
-        boolean hasDirectSupport = !plugin.isNoRestBlockVertical(belowType);
+        boolean hasDirectSupport = hasDirectVerticalSupport(plugin, block.getType(), belowType);
         if (hasDirectSupport) {
             return true;
         }
@@ -179,8 +176,8 @@ public class BridgeFallsListener implements Listener {
                 continue;
             }
 
-            if (!BridgeFallsPlugin.getInstance()
-                    .isNoRestBlockVertical(current.getRelative(BlockFace.DOWN).getType())) {
+            Material belowType = current.getRelative(BlockFace.DOWN).getType();
+            if (hasDirectVerticalSupport(BridgeFallsPlugin.getInstance(), current.getType(), belowType)) {
                 return true;
             }
 
@@ -197,7 +194,7 @@ public class BridgeFallsListener implements Listener {
 
                 visited.add(next);
 
-                if (BridgeFallsPlugin.getInstance().isNoRestBlockHorizontal(next.getType())) {
+                if (!BridgeFallsPlugin.getInstance().isHorizontalSupportProvider(next.getType())) {
                     continue;
                 }
 
@@ -216,6 +213,12 @@ public class BridgeFallsListener implements Listener {
 
         for (int dy = 1; dy <= maxUp; dy++) {
             Block above = startBlock.getRelative(0, dy, 0);
+
+            // Stop if we encounter air or no-rest blocks
+            if (above.getType() == Material.AIR ||
+                    BridgeFallsPlugin.getInstance().isNoRestBlockVertical(above.getType())) {
+                break;
+            }
 
             int horizontalRadius = BridgeFallsPlugin.getInstance().getSupportRadius();
             if (hasHorizontalSupportFromAbove(startBlock, above, horizontalRadius)) {
@@ -259,7 +262,7 @@ public class BridgeFallsListener implements Listener {
             // d'origine comme seul support.
             if (distance > 0) {
                 Material belowType = current.getRelative(BlockFace.DOWN).getType();
-                if (!BridgeFallsPlugin.getInstance().isNoRestBlockVertical(belowType)) {
+                if (hasDirectVerticalSupport(BridgeFallsPlugin.getInstance(), current.getType(), belowType)) {
                     return true;
                 }
             }
@@ -277,7 +280,7 @@ public class BridgeFallsListener implements Listener {
 
                 visited.add(next);
 
-                if (BridgeFallsPlugin.getInstance().isNoRestBlockHorizontal(next.getType())) {
+                if (!BridgeFallsPlugin.getInstance().isHorizontalSupportProvider(next.getType())) {
                     continue;
                 }
 
@@ -313,7 +316,7 @@ public class BridgeFallsListener implements Listener {
                 continue;
             }
 
-            if (distance > 0 && !BridgeFallsPlugin.getInstance().isNoRestBlockHorizontal(current.getType())) {
+            if (distance > 0 && BridgeFallsPlugin.getInstance().isHorizontalSupportProvider(current.getType())) {
                 return true;
             }
 
@@ -330,7 +333,7 @@ public class BridgeFallsListener implements Listener {
 
                 visited.add(next);
 
-                if (BridgeFallsPlugin.getInstance().isNoRestBlockHorizontal(next.getType())) {
+                if (!BridgeFallsPlugin.getInstance().isHorizontalSupportProvider(next.getType())) {
                     continue;
                 }
 
@@ -340,6 +343,16 @@ public class BridgeFallsListener implements Listener {
         }
 
         return false;
+    }
+
+    private static boolean hasDirectVerticalSupport(BridgeFallsPlugin plugin, Material blockType, Material belowType) {
+        // Cas spécial : certains blocs "flottants" sont autorisés à reposer sur l'eau
+        if (plugin.isFloatingSupport(blockType) && belowType == Material.WATER) {
+            return true;
+        }
+
+        // Sinon, on applique la règle standard basée sur no-rest-blocks-vertical
+        return !plugin.isNoRestBlockVertical(belowType);
     }
 
     private static void checkAndHighlightUnsupportedBlocksAround(Block origin, int radius, Player player) {
@@ -382,7 +395,11 @@ public class BridgeFallsListener implements Listener {
     }
 
     public static void showRedOutline(Block block) {
-        Particle.DustOptions red = new Particle.DustOptions(Color.RED, 1.2F);
+        showColoredOutline(block, Color.RED);
+    }
+
+    public static void showColoredOutline(Block block, Color color) {
+        Particle.DustOptions dust = new Particle.DustOptions(color, 1.2F);
 
         World world = block.getWorld();
 
@@ -396,24 +413,24 @@ public class BridgeFallsListener implements Listener {
         double step = 0.25;
 
         for (double x = minX; x <= maxX; x += step) {
-            world.spawnParticle(Particle.DUST, x, minY, minZ, 1, 0, 0, 0, 0, red);
-            world.spawnParticle(Particle.DUST, x, minY, maxZ, 1, 0, 0, 0, 0, red);
-            world.spawnParticle(Particle.DUST, x, maxY, minZ, 1, 0, 0, 0, 0, red);
-            world.spawnParticle(Particle.DUST, x, maxY, maxZ, 1, 0, 0, 0, 0, red);
+            world.spawnParticle(Particle.DUST, x, minY, minZ, 1, 0, 0, 0, 0, dust);
+            world.spawnParticle(Particle.DUST, x, minY, maxZ, 1, 0, 0, 0, 0, dust);
+            world.spawnParticle(Particle.DUST, x, maxY, minZ, 1, 0, 0, 0, 0, dust);
+            world.spawnParticle(Particle.DUST, x, maxY, maxZ, 1, 0, 0, 0, 0, dust);
         }
 
         for (double z = minZ; z <= maxZ; z += step) {
-            world.spawnParticle(Particle.DUST, minX, minY, z, 1, 0, 0, 0, 0, red);
-            world.spawnParticle(Particle.DUST, maxX, minY, z, 1, 0, 0, 0, 0, red);
-            world.spawnParticle(Particle.DUST, minX, maxY, z, 1, 0, 0, 0, 0, red);
-            world.spawnParticle(Particle.DUST, maxX, maxY, z, 1, 0, 0, 0, 0, red);
+            world.spawnParticle(Particle.DUST, minX, minY, z, 1, 0, 0, 0, 0, dust);
+            world.spawnParticle(Particle.DUST, maxX, minY, z, 1, 0, 0, 0, 0, dust);
+            world.spawnParticle(Particle.DUST, minX, maxY, z, 1, 0, 0, 0, 0, dust);
+            world.spawnParticle(Particle.DUST, maxX, maxY, z, 1, 0, 0, 0, 0, dust);
         }
 
         for (double y = minY; y <= maxY; y += step) {
-            world.spawnParticle(Particle.DUST, minX, y, minZ, 1, 0, 0, 0, 0, red);
-            world.spawnParticle(Particle.DUST, maxX, y, minZ, 1, 0, 0, 0, 0, red);
-            world.spawnParticle(Particle.DUST, minX, y, maxZ, 1, 0, 0, 0, 0, red);
-            world.spawnParticle(Particle.DUST, maxX, y, maxZ, 1, 0, 0, 0, 0, red);
+            world.spawnParticle(Particle.DUST, minX, y, minZ, 1, 0, 0, 0, 0, dust);
+            world.spawnParticle(Particle.DUST, maxX, y, minZ, 1, 0, 0, 0, 0, dust);
+            world.spawnParticle(Particle.DUST, minX, y, maxZ, 1, 0, 0, 0, 0, dust);
+            world.spawnParticle(Particle.DUST, maxX, y, maxZ, 1, 0, 0, 0, 0, dust);
         }
 
     }

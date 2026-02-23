@@ -6,6 +6,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
+import org.bukkit.Color;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -26,11 +27,16 @@ public class BridgeFallsPlugin extends JavaPlugin {
     private Set<Material> noRestBlocksVertical = new HashSet<>();
     private Set<Material> noRestBlocksHorizontal = new HashSet<>();
     private Set<Material> alwaysStableBlocks = new HashSet<>();
+    private Set<Material> floatingSupportBlocks = new HashSet<>();
     private final Map<Location, Long> unstableBlocks = new HashMap<>();
     private long fallDelayMillis = 60_000L;
     private int supportRadius = 2;
     private int topSupportRadius = 0;
     private FileConfiguration messagesConfig;
+
+    private Color instabilityColorStart = Color.YELLOW;
+    private Color instabilityColorMiddle = Color.ORANGE;
+    private Color instabilityColorEnd = Color.RED;
 
     public static BridgeFallsPlugin getInstance() {
         return JavaPlugin.getPlugin(BridgeFallsPlugin.class);
@@ -44,6 +50,7 @@ public class BridgeFallsPlugin extends JavaPlugin {
         loadNoRestBlocks();
         loadUnstableBlocks();
         loadMessages();
+        loadInstabilityColors();
 
         getServer().getPluginManager().registerEvents(new BridgeFallsListener(), this);
 
@@ -60,19 +67,18 @@ public class BridgeFallsPlugin extends JavaPlugin {
             }
 
             boolean changed = false;
+            java.util.List<Location> toRemove = new java.util.ArrayList<>();
+            java.util.List<Block> toFall = new java.util.ArrayList<>();
 
             synchronized (unstableBlocks) {
-                Iterator<Map.Entry<Location, Long>> it = unstableBlocks.entrySet().iterator();
                 long now = System.currentTimeMillis();
 
-                while (it.hasNext()) {
-                    Map.Entry<Location, Long> entry = it.next();
+                for (Map.Entry<Location, Long> entry : unstableBlocks.entrySet()) {
                     Location loc = entry.getKey();
                     long createdAt = entry.getValue();
 
                     if (loc.getWorld() == null) {
-                        it.remove();
-                        changed = true;
+                        toRemove.add(loc);
                         continue;
                     }
 
@@ -80,30 +86,57 @@ public class BridgeFallsPlugin extends JavaPlugin {
 
                     // Si le bloc n'existe plus, on le retire
                     if (block.getType() == Material.AIR) {
-                        it.remove();
-                        changed = true;
+                        toRemove.add(loc);
                         continue;
                     }
 
                     // Si le bloc est redevenu stable, on le retire et on arrête d'afficher les
                     // particules
                     if (BridgeFallsListener.isBlockSupported(block)) {
-                        it.remove();
-                        changed = true;
+                        toRemove.add(loc);
                         continue;
                     }
 
-                    // Si le délai est écoulé, on déclenche la chute du bloc
+                    // Si le délai est écoulé, on marquera ce bloc pour qu'il tombe
                     if (fallDelayMillis > 0 && now - createdAt >= fallDelayMillis) {
-                        BridgeFallsListener.startFalling(block);
-                        it.remove();
-                        changed = true;
+                        toRemove.add(loc);
+                        toFall.add(block);
                         continue;
                     }
 
-                    // Toujours instable : on affiche/rafraîchit son contour de particules rouges
-                    BridgeFallsListener.showRedOutline(block);
+                    // Toujours instable : on affiche/rafraîchit son contour de particules
+                    // Couleur selon le temps restant avant la chute (configurable) :
+                    // - 1er tiers : couleur 1
+                    // - 2e tiers : couleur 2
+                    // - 3e tiers : couleur 3
+                    if (fallDelayMillis <= 0) {
+                        BridgeFallsListener.showRedOutline(block);
+                    } else {
+                        long elapsed = now - createdAt;
+                        double ratio = Math.max(0.0, Math.min(1.0, (double) elapsed / (double) fallDelayMillis));
+
+                        if (ratio < (1.0 / 3.0)) {
+                            BridgeFallsListener.showColoredOutline(block, instabilityColorStart);
+                        } else if (ratio < (2.0 / 3.0)) {
+                            BridgeFallsListener.showColoredOutline(block, instabilityColorMiddle);
+                        } else {
+                            BridgeFallsListener.showColoredOutline(block, instabilityColorEnd);
+                        }
+                    }
                 }
+
+                if (!toRemove.isEmpty()) {
+                    for (Location loc : toRemove) {
+                        unstableBlocks.remove(loc);
+                    }
+                    changed = true;
+                }
+            }
+
+            // On déclenche la chute des blocs identifiés en dehors du bloc synchronized
+            // pour éviter toute modification concurrente de la map pendant l'itération.
+            for (Block blockToFall : toFall) {
+                BridgeFallsListener.startFalling(blockToFall);
             }
 
             if (changed) {
@@ -117,6 +150,7 @@ public class BridgeFallsPlugin extends JavaPlugin {
         super.reloadConfig();
         loadNoRestBlocks();
         loadMessages();
+        loadInstabilityColors();
     }
 
     public boolean isBridgeFallsEnabled() {
@@ -185,6 +219,43 @@ public class BridgeFallsPlugin extends JavaPlugin {
         return new HashSet<>(noRestBlocksHorizontal);
     }
 
+    public boolean isFloatingSupport(Material material) {
+        if (material == null) {
+            return false;
+        }
+
+        return floatingSupportBlocks.contains(material);
+    }
+
+    /**
+     * Indique si un matériau peut servir de support horizontal dans le réseau
+     * de structure.
+     *
+     * Cas particulier souhaité :
+     * - si un bloc est à la fois dans always-stable-blocks et
+     * no-rest-blocks-horizontal, il est stable pour lui-même mais ne sert
+     * jamais de support horizontal pour les autres.
+     */
+    public boolean isHorizontalSupportProvider(Material material) {
+        if (material == null) {
+            return false;
+        }
+
+        if (material == Material.AIR) {
+            return false;
+        }
+
+        // Bloc explicitement listé comme "no-rest-blocks-horizontal" ne doit pas
+        // être utilisé comme support horizontal.
+        if (noRestBlocksHorizontal.contains(material)) {
+            return false;
+        }
+
+        // Un bloc toujours stable mais non marqué comme no-rest-blocks-horizontal
+        // peut servir de support horizontal (comportement actuel conservé).
+        return true;
+    }
+
     public void addUnstableBlock(Location location) {
         if (location == null || location.getWorld() == null) {
             return;
@@ -216,6 +287,103 @@ public class BridgeFallsPlugin extends JavaPlugin {
         }
     }
 
+    private void loadInstabilityColors() {
+        List<String> entries = getConfig().getStringList("instability-colors");
+        if (entries == null || entries.isEmpty()) {
+            // Config absente : garder les valeurs par défaut
+            instabilityColorStart = Color.YELLOW;
+            instabilityColorMiddle = Color.ORANGE;
+            instabilityColorEnd = Color.RED;
+            return;
+        }
+
+        // On lit au plus 3 couleurs dans l'ordre
+        if (entries.size() >= 1) {
+            Color c = parseColor(entries.get(0));
+            if (c != null) {
+                instabilityColorStart = c;
+            }
+        }
+        if (entries.size() >= 2) {
+            Color c = parseColor(entries.get(1));
+            if (c != null) {
+                instabilityColorMiddle = c;
+            }
+        }
+        if (entries.size() >= 3) {
+            Color c = parseColor(entries.get(2));
+            if (c != null) {
+                instabilityColorEnd = c;
+            }
+        }
+    }
+
+    private Color parseColor(String value) {
+        if (value == null) {
+            return null;
+        }
+
+        String v = value.trim().toLowerCase();
+        if (v.isEmpty()) {
+            return null;
+        }
+
+        // Noms simples
+        switch (v) {
+            case "red":
+                return Color.RED;
+            case "green":
+                return Color.GREEN;
+            case "blue":
+                return Color.BLUE;
+            case "yellow":
+                return Color.YELLOW;
+            case "orange":
+                return Color.ORANGE;
+            case "white":
+                return Color.WHITE;
+            case "black":
+                return Color.BLACK;
+            case "gray":
+            case "grey":
+                return Color.GRAY;
+            case "aqua":
+            case "cyan":
+                return Color.AQUA;
+            case "fuchsia":
+            case "magenta":
+                return Color.FUCHSIA;
+            case "lime":
+                return Color.LIME;
+            case "navy":
+                return Color.NAVY;
+            case "maroon":
+                return Color.MAROON;
+            case "olive":
+                return Color.OLIVE;
+            case "purple":
+                return Color.PURPLE;
+            case "silver":
+                return Color.SILVER;
+            case "teal":
+                return Color.TEAL;
+        }
+
+        // Hex RGB du type "#RRGGBB" ou "RRGGBB"
+        String hex = v.startsWith("#") ? v.substring(1) : v;
+        if (hex.length() == 6) {
+            try {
+                int r = Integer.parseInt(hex.substring(0, 2), 16);
+                int g = Integer.parseInt(hex.substring(2, 4), 16);
+                int b = Integer.parseInt(hex.substring(4, 6), 16);
+                return Color.fromRGB(r, g, b);
+            } catch (NumberFormatException ignored) {
+            }
+        }
+
+        return null;
+    }
+
     public String getMessage(String key) {
         return getMessage(key, Collections.emptyMap());
     }
@@ -242,6 +410,7 @@ public class BridgeFallsPlugin extends JavaPlugin {
         noRestBlocksVertical.clear();
         noRestBlocksHorizontal.clear();
         alwaysStableBlocks.clear();
+        floatingSupportBlocks.clear();
 
         List<String> verticalEntries = getConfig().getStringList("no-rest-blocks-vertical");
         for (String name : verticalEntries) {
@@ -289,6 +458,22 @@ public class BridgeFallsPlugin extends JavaPlugin {
             }
 
             alwaysStableBlocks.add(material);
+        }
+
+        // Blocs qui peuvent flotter et donc reposer sur l'eau
+        List<String> floatingEntries = getConfig().getStringList("floating-support-blocks");
+        for (String name : floatingEntries) {
+            if (name == null) {
+                continue;
+            }
+
+            Material material = Material.matchMaterial(name.toUpperCase());
+            if (material == null) {
+                getLogger().warning("Unknown material in floating-support-blocks: " + name);
+                continue;
+            }
+
+            floatingSupportBlocks.add(material);
         }
 
         double minutes = getConfig().getDouble("fall-delay-minutes", 1.0D);

@@ -13,8 +13,6 @@ no-rest-blocks-horizontal:
   - fire
   - powder_snow
   - scaffolding
-  - soul_sand
-  - sand
   - acacia_leaves
   - birch_leaves
   - dark_oak_leaves
@@ -23,6 +21,27 @@ no-rest-blocks-horizontal:
   - spruce_leaves
   - mangrove_leaves
   - cherry_leaves
+# Blocs qui tombent nativement (toujours stables pour le plugin)
+  - sand
+  - suspicious_sand
+  - red_sand
+  - gravel
+  - white_concrete_powder
+  - orange_concrete_powder
+  - magenta_concrete_powder
+  - light_blue_concrete_powder
+  - yellow_concrete_powder
+  - lime_concrete_powder
+  - pink_concrete_powder
+  - gray_concrete_powder
+  - light_gray_concrete_powder
+  - cyan_concrete_powder
+  - purple_concrete_powder
+  - blue_concrete_powder
+  - brown_concrete_powder
+  - green_concrete_powder
+  - red_concrete_powder
+  - black_concrete_powder
 
 always-stable-blocks:
   - air
@@ -37,13 +56,62 @@ always-stable-blocks:
   - spruce_leaves
   - mangrove_leaves
   - cherry_leaves
+  # Blocs qui tombent nativement (toujours stables pour le plugin)
+  - sand
+  - suspicious_sand
+  - red_sand
+  - gravel
+  - white_concrete_powder
+  - orange_concrete_powder
+  - magenta_concrete_powder
+  - light_blue_concrete_powder
+  - yellow_concrete_powder
+  - lime_concrete_powder
+  - pink_concrete_powder
+  - gray_concrete_powder
+  - light_gray_concrete_powder
+  - cyan_concrete_powder
+  - purple_concrete_powder
+  - blue_concrete_powder
+  - brown_concrete_powder
+  - green_concrete_powder
+  - red_concrete_powder
+  - black_concrete_powder
 
-fall-delay-minutes: 0.1
 
 # Rayon de recherche des blocs de support / blocs instables (en blocs)
 support-radius: 5
 
 # Rayon vertical vers le HAUT dans lequel un bloc
-# 0 = désactivé (comportement actuel)
+# 0 = désactivé
 top-support-radius: 2
+
+# Blocs considérés comme "flottants" :
+# ils peuvent reposer sur l'eau comme si c'était un support solide.
+floating-support-blocks: 
+  - lily_pad
+  - seagrass
+  - tall_seagrass
+  - birch_leaves
+  - dark_oak_leaves
+  - jungle_leaves
+  - oak_leaves
+  - spruce_leaves
+  - mangrove_leaves
+  - cherry_leaves
+  - acacia_log
+  - birch_log
+  - dark_oak_log
+  - jungle_log
+  - oak_log
+  - spruce_log
+  - mangrove_log
+  - cherry_log
+
+fall-delay-minutes: 0.1
+# Couleurs des particules d'instabilité (dans l'ordre : début, milieu, fin)
+instability-colors:
+  - yellow
+  - orange
+  - red
 
