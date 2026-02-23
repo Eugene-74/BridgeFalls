@@ -87,6 +87,7 @@ tasks {
     runServer {
         minecraftVersion("$mainMinecraftVersion")
     }
+    runPaper.folia.registerTask()
 }
 
 

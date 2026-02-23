@@ -13,7 +13,6 @@ import org.bukkit.GameMode;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.IntSupplier;
 import java.util.stream.Collectors;
 
@@ -66,6 +65,11 @@ public class BridgeFallsCommand extends BaseCommand {
         sender.sendMessage("§7/bf config always-stable list §f- View always-stable blocks");
         sender.sendMessage("§7/bf config always-stable add <material> §f- Add material to always-stable list");
         sender.sendMessage("§7/bf config always-stable remove <material> §f- Remove material from always-stable list");
+        sender.sendMessage("§7/bf config always-stable-no-support list §f- View always-stable blocks with no support");
+        sender.sendMessage(
+                "§7/bf config always-stable-no-support add <material> §f- Add material to always-stable/no-support list");
+        sender.sendMessage(
+                "§7/bf config always-stable-no-support remove <material> §f- Remove material from always-stable/no-support list");
         sender.sendMessage("");
 
         sender.sendMessage("§e=== Floating Support (Water Blocks) ===");
@@ -281,6 +285,26 @@ public class BridgeFallsCommand extends BaseCommand {
     @CommandCompletion("@bf_always_stable")
     public void onRemoveAlwaysStable(CommandSender sender, String materialName) {
         handleMaterialListRemove(sender, "always-stable-blocks", "always-stable-blocks", materialName);
+    }
+
+    @Subcommand("config always-stable-no-support list")
+    public void onListAlwaysStableNoSupport(CommandSender sender) {
+        handleListList(sender, "always-stable-blocks-but-with-no-support",
+                "always-stable-blocks-but-with-no-support");
+    }
+
+    @Subcommand("config always-stable-no-support add")
+    @CommandCompletion("@bf_always_stable_no_support_add")
+    public void onAddAlwaysStableNoSupport(CommandSender sender, String materialName) {
+        handleMaterialListAdd(sender, "always-stable-blocks-but-with-no-support",
+                "always-stable-blocks-but-with-no-support", materialName);
+    }
+
+    @Subcommand("config always-stable-no-support remove")
+    @CommandCompletion("@bf_always_stable_no_support")
+    public void onRemoveAlwaysStableNoSupport(CommandSender sender, String materialName) {
+        handleMaterialListRemove(sender, "always-stable-blocks-but-with-no-support",
+                "always-stable-blocks-but-with-no-support", materialName);
     }
 
     @Subcommand("config floating-support list")

@@ -37,10 +37,14 @@ public class BridgeFallsListener implements Listener {
 
         Block brokenBlock = event.getBlock();
 
-        BridgeFallsPlugin.getInstance().getServer().getScheduler().runTaskLater(BridgeFallsPlugin.getInstance(), () -> {
-            int radius = BridgeFallsPlugin.getInstance().getSupportRadius();
-            checkAndHighlightUnsupportedBlocksAround(brokenBlock, radius, player);
-        }, 1L);
+        BridgeFallsPlugin.getInstance().getServer().getRegionScheduler().runDelayed(
+                BridgeFallsPlugin.getInstance(),
+                brokenBlock.getLocation(),
+                task -> {
+                    int radius = BridgeFallsPlugin.getInstance().getSupportRadius();
+                    checkAndHighlightUnsupportedBlocksAround(brokenBlock, radius, player);
+                },
+                1L);
     }
 
     @EventHandler
@@ -255,16 +259,20 @@ public class BridgeFallsListener implements Listener {
         }
 
         for (int dy = 1; dy <= maxUp; dy++) {
-            Block above = startBlock.getRelative(0, dy, 0);
 
-            if (above.getType() == Material.AIR ||
-                    BridgeFallsPlugin.getInstance().isNoRestBlockVertical(above.getType())) {
-                break;
-            }
+            for (int dx = -1; dx <= 1; dx++) {
+                for (int dz = -1; dz <= 1; dz++) {
+                    Block blockInGrid = startBlock.getRelative(dx, dy, dz);
 
-            int horizontalRadius = BridgeFallsPlugin.getInstance().getSupportRadius();
-            if (hasHorizontalSupportFromAbove(startBlock, above, horizontalRadius)) {
-                return true;
+                    if (blockInGrid.getType() != Material.AIR &&
+                            !BridgeFallsPlugin.getInstance().isNoRestBlockVertical(blockInGrid.getType())) {
+
+                        int horizontalRadius = BridgeFallsPlugin.getInstance().getSupportRadius();
+                        if (hasHorizontalSupportFromAbove(startBlock, blockInGrid, horizontalRadius)) {
+                            return true;
+                        }
+                    }
+                }
             }
         }
 
@@ -395,15 +403,17 @@ public class BridgeFallsListener implements Listener {
             return true;
         }
 
-        if (belowType == Material.AIR) {
-            return false;
+        // Check 3x3 grid below for at least one solid block
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                Block checkBlock = block.getRelative(dx, -1, dz);
+                if (checkBlock.getType() != Material.AIR && !plugin.isNoRestBlockVertical(checkBlock.getType())) {
+                    return true;
+                }
+            }
         }
 
-        if (plugin.isNoRestBlockVertical(belowType)) {
-            return false;
-        }
-
-        return true;
+        return false;
     }
 
     static boolean hasAnchor(Block block, int radius) {
@@ -419,15 +429,6 @@ public class BridgeFallsListener implements Listener {
         int originY = block.getY();
         int originZ = block.getZ();
         int radiusSquared = radius * radius;
-
-        BlockFace[] faces = new BlockFace[] {
-                BlockFace.NORTH,
-                BlockFace.SOUTH,
-                BlockFace.EAST,
-                BlockFace.WEST,
-                BlockFace.UP,
-                BlockFace.DOWN
-        };
 
         Queue<Block> toVisit = new LinkedList<>();
         Set<Block> visited = new HashSet<>();
@@ -446,19 +447,27 @@ public class BridgeFallsListener implements Listener {
                 return true;
             }
 
-            for (BlockFace face : faces) {
-                Block next = current.getRelative(face);
+            for (int offsetX = -1; offsetX <= 1; offsetX++) {
+                for (int offsetY = -1; offsetY <= 1; offsetY++) {
+                    for (int offsetZ = -1; offsetZ <= 1; offsetZ++) {
+                        if (offsetX == 0 && offsetY == 0 && offsetZ == 0) {
+                            continue;
+                        }
 
-                if (visited.contains(next)) {
-                    continue;
+                        Block next = current.getRelative(offsetX, offsetY, offsetZ);
+
+                        if (visited.contains(next)) {
+                            continue;
+                        }
+
+                        if (next.getType() == Material.AIR) {
+                            continue;
+                        }
+
+                        visited.add(next);
+                        toVisit.add(next);
+                    }
                 }
-
-                if (next.getType() == Material.AIR) {
-                    continue;
-                }
-
-                visited.add(next);
-                toVisit.add(next);
             }
         }
 
@@ -490,7 +499,8 @@ public class BridgeFallsListener implements Listener {
                         }
 
                         plugin.addUnstableBlock(loc);
-                        showBlueOutline(candidate);
+                        BridgeFallsListener.showColoredOutline(candidate, BridgeFallsPlugin.defaultInstabilityColor);
+
                         playUnstableDenySound(candidate.getLocation());
                     } else {
                         if (plugin.isAlwaysStable(candidate.getType())) {
@@ -511,7 +521,7 @@ public class BridgeFallsListener implements Listener {
                             }
 
                             plugin.addUnstableBlock(loc);
-                            showBlueOutline(candidate);
+                            showColoredOutline(candidate, BridgeFallsPlugin.defaultInstabilityColor);
                             playUnstableDenySound(candidate.getLocation());
                         }
                     }
@@ -526,10 +536,6 @@ public class BridgeFallsListener implements Listener {
             placeholders.put("radius", String.valueOf(radius));
             player.sendMessage(plugin.getMessage("break.made-unstable", placeholders));
         }
-    }
-
-    public static void showBlueOutline(Block block) {
-        showColoredOutline(block, Color.BLUE);
     }
 
     public static void showColoredOutline(Block block, Color color) {

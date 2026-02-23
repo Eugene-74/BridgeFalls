@@ -7,11 +7,10 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockState;
-import org.bukkit.block.Container;
 import org.bukkit.block.TileState;
 import org.bukkit.Color;
 import org.bukkit.plugin.java.JavaPlugin;
-import org.bukkit.scheduler.BukkitTask;
+import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -50,7 +49,10 @@ public class BridgeFallsPlugin extends JavaPlugin {
     private Color instabilityColorStart = Color.YELLOW;
     private Color instabilityColorMiddle = Color.ORANGE;
     private Color instabilityColorEnd = Color.RED;
-    private BukkitTask unstableCheckTask;
+
+    public static Color defaultInstabilityColor = Color.BLUE;
+
+    private ScheduledTask unstableCheckTask;
 
     public static BridgeFallsPlugin getInstance() {
         return JavaPlugin.getPlugin(BridgeFallsPlugin.class);
@@ -58,7 +60,7 @@ public class BridgeFallsPlugin extends JavaPlugin {
 
     @Override
     public void onEnable() {
-        new Metrics(this, 21798);
+        new Metrics(this, 29737);
         saveDefaultConfig();
 
         loadNoRestBlocks();
@@ -66,6 +68,8 @@ public class BridgeFallsPlugin extends JavaPlugin {
         loadMessages();
         loadInstabilityColors();
         loadDisabledGamemodes();
+
+        resetTimersForAllUnstableBlocks();
 
         getServer().getPluginManager().registerEvents(new BridgeFallsListener(), this);
 
@@ -77,6 +81,8 @@ public class BridgeFallsPlugin extends JavaPlugin {
                 c -> getConfig().getStringList("no-rest-blocks-horizontal"));
         manager.getCommandCompletions().registerAsyncCompletion("bf_always_stable",
                 c -> getConfig().getStringList("always-stable-blocks"));
+        manager.getCommandCompletions().registerAsyncCompletion("bf_always_stable_no_support",
+                c -> getConfig().getStringList("always-stable-blocks-but-with-no-support"));
         manager.getCommandCompletions().registerAsyncCompletion("bf_floating_support",
                 c -> getConfig().getStringList("floating-support-blocks"));
         manager.getCommandCompletions().registerAsyncCompletion("bf_instability_colors",
@@ -157,6 +163,24 @@ public class BridgeFallsPlugin extends JavaPlugin {
             return result;
         });
 
+        manager.getCommandCompletions().registerAsyncCompletion("bf_always_stable_no_support_add", c -> {
+            List<String> existing = getConfig().getStringList("always-stable-blocks-but-with-no-support");
+            Set<String> existingUpper = new HashSet<>();
+            for (String s : existing) {
+                if (s != null) {
+                    existingUpper.add(s.toUpperCase());
+                }
+            }
+            List<String> result = new ArrayList<>();
+            for (Material m : Material.values()) {
+                String name = m.name();
+                if (!existingUpper.contains(name)) {
+                    result.add(name.toLowerCase());
+                }
+            }
+            return result;
+        });
+
         manager.getCommandCompletions().registerAsyncCompletion("bf_floating_support_add", c -> {
             List<String> existing = getConfig().getStringList("floating-support-blocks");
             Set<String> existingUpper = new HashSet<>();
@@ -187,7 +211,9 @@ public class BridgeFallsPlugin extends JavaPlugin {
         loadMessages();
         loadInstabilityColors();
         loadDisabledGamemodes();
-        restartUnstableCheckTask();
+        if (isEnabled()) {
+            restartUnstableCheckTask();
+        }
     }
 
     public boolean isBridgeFallsEnabled() {
@@ -196,6 +222,19 @@ public class BridgeFallsPlugin extends JavaPlugin {
 
     public void setBridgeFallsEnabled(boolean bridgeFallsEnabled) {
         this.bridgeFallsEnabled = bridgeFallsEnabled;
+        resetTimersForAllUnstableBlocks();
+    }
+
+    private void resetTimersForAllUnstableBlocks() {
+        long now = System.currentTimeMillis();
+
+        synchronized (unstableBlocks) {
+            for (Map.Entry<Location, Long> entry : unstableBlocks.entrySet()) {
+                entry.setValue(now);
+            }
+        }
+
+        saveUnstableBlocks();
     }
 
     public boolean isNoRestBlockVertical(Material material) {
@@ -360,6 +399,8 @@ public class BridgeFallsPlugin extends JavaPlugin {
             instabilityColorStart = Color.YELLOW;
             instabilityColorMiddle = Color.ORANGE;
             instabilityColorEnd = Color.RED;
+
+            defaultInstabilityColor = Color.BLUE;
             return;
         }
 
@@ -381,6 +422,9 @@ public class BridgeFallsPlugin extends JavaPlugin {
                 instabilityColorEnd = c;
             }
         }
+
+        String defaultColor = getConfig().getString("instable-color", "blue");
+        defaultInstabilityColor = parseColor(defaultColor);
     }
 
     public Color parseColor(String value) {
@@ -616,15 +660,7 @@ public class BridgeFallsPlugin extends JavaPlugin {
         this.fallingBlockEnabled = enabled;
 
         if (enabled && !wasEnabled) {
-            long now = System.currentTimeMillis();
-
-            synchronized (unstableBlocks) {
-                for (Map.Entry<Location, Long> entry : unstableBlocks.entrySet()) {
-                    entry.setValue(now);
-                }
-            }
-
-            saveUnstableBlocks();
+            resetTimersForAllUnstableBlocks();
         }
     }
 
@@ -740,9 +776,9 @@ public class BridgeFallsPlugin extends JavaPlugin {
             unstableCheckTask = null;
         }
 
-        unstableCheckTask = getServer().getScheduler().runTaskTimer(
+        unstableCheckTask = getServer().getGlobalRegionScheduler().runAtFixedRate(
                 this,
-                this::runUnstableCheckCycle,
+                task -> runUnstableCheckCycle(),
                 timeToCheckTicks,
                 timeToCheckTicks);
     }
@@ -752,80 +788,89 @@ public class BridgeFallsPlugin extends JavaPlugin {
             return;
         }
 
-        boolean changed = false;
-        java.util.List<Location> toRemove = new java.util.ArrayList<>();
-        java.util.List<Block> toFall = new java.util.ArrayList<>();
-
+        java.util.List<Location> locationsToCheck;
         synchronized (unstableBlocks) {
-            long now = System.currentTimeMillis();
-
-            for (Map.Entry<Location, Long> entry : unstableBlocks.entrySet()) {
-                Location loc = entry.getKey();
-                long createdAt = entry.getValue();
-
-                if (loc.getWorld() == null) {
-                    toRemove.add(loc);
-                    log("Removed unstable block at " + loc + " because world is null.");
-                    continue;
-                }
-
-                Block block = loc.getBlock();
-
-                if (block.getType() == Material.AIR) {
-                    toRemove.add(loc);
-                    log("Removed unstable block at " + loc + " because block is now AIR.");
-                    continue;
-                }
-
-                if (BridgeFallsListener.isBlockSupported(block)) {
-                    if (BridgeFallsListener.hasAnchor(block, anchorSupportRadius)) {
-                        log("Block at " + block.getLocation()
-                                + " is now supported again and removed from unstable blocks.");
-                        toRemove.add(loc);
-                        continue;
-                    }
-                }
-
-                if (isFallingBlockEnabled() && fallDelayMillis > 0 && now - createdAt >= fallDelayMillis) {
-                    toRemove.add(loc);
-                    log("Block at " + block.getLocation() + " is now falling.");
-                    toFall.add(block);
-                    continue;
-                }
-
-                if (!isFallingBlockEnabled()) {
-                    BridgeFallsListener.showBlueOutline(block);
-                } else {
-
-                    long elapsed = now - createdAt;
-                    double ratio = Math.max(0.0, Math.min(1.0, (double) elapsed / (double) fallDelayMillis));
-
-                    if (ratio < (1.0 / 3.0)) {
-                        BridgeFallsListener.showColoredOutline(block, instabilityColorStart);
-                    } else if (ratio < (2.0 / 3.0)) {
-                        BridgeFallsListener.showColoredOutline(block, instabilityColorMiddle);
-                    } else {
-                        BridgeFallsListener.showColoredOutline(block, instabilityColorEnd);
-                        BridgeFallsListener.playRedPhaseWarningSound(block.getLocation());
-                    }
-                }
-            }
-
-            if (!toRemove.isEmpty()) {
-                for (Location loc : toRemove) {
-                    unstableBlocks.remove(loc);
-                    log("Removed unstable block at " + loc);
-                }
-                changed = true;
-            }
+            locationsToCheck = new java.util.ArrayList<>(unstableBlocks.keySet());
         }
 
-        for (Block blockToFall : toFall) {
-            BridgeFallsListener.startFalling(blockToFall);
+        for (Location location : locationsToCheck) {
+            if (location == null || location.getWorld() == null) {
+                removeUnstableBlockAndSave(location,
+                        "Removed unstable block at " + location + " because world is null.");
+                continue;
+            }
+
+            Location regionLocation = location.clone();
+            getServer().getRegionScheduler().execute(this, regionLocation,
+                    () -> runUnstableCheckAtLocation(regionLocation));
+        }
+    }
+
+    private void runUnstableCheckAtLocation(Location location) {
+        long createdAt;
+        synchronized (unstableBlocks) {
+            Long storedCreatedAt = unstableBlocks.get(location);
+            if (storedCreatedAt == null) {
+                return;
+            }
+            createdAt = storedCreatedAt;
         }
 
-        if (changed) {
+        Block block = location.getBlock();
+
+        if (block.getType() == Material.AIR) {
+            removeUnstableBlockAndSave(location,
+                    "Removed unstable block at " + location + " because block is now AIR.");
+            return;
+        }
+
+        if (BridgeFallsListener.isBlockSupported(block) && BridgeFallsListener.hasAnchor(block, anchorSupportRadius)) {
+            removeUnstableBlockAndSave(location,
+                    "Block at " + block.getLocation() + " is now supported again and removed from unstable blocks.");
+            return;
+        }
+
+        long now = System.currentTimeMillis();
+        if (isFallingBlockEnabled() && fallDelayMillis >= 0 && now - createdAt >= fallDelayMillis) {
+            if (removeUnstableBlockAndSave(location, "Block at " + block.getLocation() + " is now falling.")) {
+                BridgeFallsListener.startFalling(block);
+            }
+            return;
+        }
+
+        if (!isFallingBlockEnabled()) {
+            BridgeFallsListener.showColoredOutline(block, defaultInstabilityColor);
+            return;
+        }
+
+        long elapsed = now - createdAt;
+        double ratio = Math.max(0.0, Math.min(1.0, (double) elapsed / (double) fallDelayMillis));
+
+        if (ratio < (1.0 / 3.0)) {
+            BridgeFallsListener.showColoredOutline(block, instabilityColorStart);
+        } else if (ratio < (2.0 / 3.0)) {
+            BridgeFallsListener.showColoredOutline(block, instabilityColorMiddle);
+        } else {
+            BridgeFallsListener.showColoredOutline(block, instabilityColorEnd);
+            BridgeFallsListener.playRedPhaseWarningSound(block.getLocation());
+        }
+    }
+
+    private boolean removeUnstableBlockAndSave(Location location, String reason) {
+        if (location == null) {
+            return false;
+        }
+
+        boolean removed;
+        synchronized (unstableBlocks) {
+            removed = unstableBlocks.remove(location) != null;
+        }
+
+        if (removed) {
+            log(reason);
             saveUnstableBlocks();
         }
+
+        return removed;
     }
 }
