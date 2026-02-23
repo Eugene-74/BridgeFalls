@@ -8,6 +8,7 @@ import co.aikar.commands.annotation.CommandCompletion;
 import co.aikar.commands.annotation.Optional;
 import org.bukkit.command.CommandSender;
 import org.bukkit.Material;
+import org.bukkit.GameMode;
 
 import java.util.HashMap;
 import java.util.List;
@@ -19,6 +20,77 @@ import java.util.stream.Collectors;
 @CommandAlias("bridgeFallsCommand|bfCommand|bf|bridgeFalls")
 @CommandPermission("bridgefalls.admin")
 public class BridgeFallsCommand extends BaseCommand {
+    @Subcommand("help")
+    public void onHelp(CommandSender sender) {
+        sender.sendMessage("§6§m                  §r §6BridgeFalls Help §6§m                  §r");
+        sender.sendMessage("");
+
+        sender.sendMessage("§e=== Core Commands ===");
+        sender.sendMessage("§7/bf enable §f- Enable the plugin");
+        sender.sendMessage("§7/bf disable §f- Disable the plugin");
+        sender.sendMessage("§7/bf reload §f- Reload configuration from disk");
+        sender.sendMessage("");
+
+        sender.sendMessage("§e=== Radius Configuration ===");
+        sender.sendMessage("§7/bf config support-radius <value> §f- Set horizontal support search radius (min: 1)");
+        sender.sendMessage("§7/bf config top-support-radius <value> §f- Set vertical support search radius (min: 0)");
+        sender.sendMessage("§7/bf config anchor-support-radius <value> §f- Set anchor search radius (min: 1)");
+        sender.sendMessage("");
+
+        sender.sendMessage("§e=== Behavior Configuration ===");
+        sender.sendMessage(
+                "§7/bf config fall-delay-minutes <minutes> §f- Delay before unstable blocks fall (min: 0)");
+        sender.sendMessage("§7/bf config time-to-check <ticks> §f- Check interval for unstable blocks (min: 1 tick)");
+        sender.sendMessage("§7/bf config debug §f[true|false] §f- Toggle debug logging");
+        sender.sendMessage(
+                "§7/bf config allow-placing-unstable-blocks §f[true|false] §f- Allow placing unstable blocks");
+        sender.sendMessage("§7/bf config falling-block §f[enable|disable] §f- Toggle falling physics");
+        sender.sendMessage("§7/bf config falling-block drop-item §f[true|false] §f- Falling blocks drop items");
+        sender.sendMessage(
+                "§7/bf config falling-block hurt-entities §f[true|false] §f- Falling blocks damage entities");
+        sender.sendMessage("");
+
+        sender.sendMessage("§e=== Material Blacklists (No Support) ===");
+        sender.sendMessage("§7/bf config no-rest-vertical list §f- View vertical non-support blocks");
+        sender.sendMessage("§7/bf config no-rest-vertical add <material> §f- Add material to vertical blacklist");
+        sender.sendMessage(
+                "§7/bf config no-rest-vertical remove <material> §f- Remove material from vertical blacklist");
+        sender.sendMessage("");
+        sender.sendMessage("§7/bf config no-rest-horizontal list §f- View horizontal non-support blocks");
+        sender.sendMessage("§7/bf config no-rest-horizontal add <material> §f- Add material to horizontal blacklist");
+        sender.sendMessage(
+                "§7/bf config no-rest-horizontal remove <material> §f- Remove material from horizontal blacklist");
+        sender.sendMessage("");
+
+        sender.sendMessage("§e=== Material Whitelists (Always Stable) ===");
+        sender.sendMessage("§7/bf config always-stable list §f- View always-stable blocks");
+        sender.sendMessage("§7/bf config always-stable add <material> §f- Add material to always-stable list");
+        sender.sendMessage("§7/bf config always-stable remove <material> §f- Remove material from always-stable list");
+        sender.sendMessage("");
+
+        sender.sendMessage("§e=== Floating Support (Water Blocks) ===");
+        sender.sendMessage("§7/bf config floating-support list §f- View floating support blocks (e.g., lily pads)");
+        sender.sendMessage("§7/bf config floating-support add <material> §f- Add material to floating support list");
+        sender.sendMessage(
+                "§7/bf config floating-support remove <material> §f- Remove material from floating support list");
+        sender.sendMessage("");
+
+        sender.sendMessage("§e=== Instability Colors ===");
+        sender.sendMessage("§7/bf config instability-colors list §f- View instability indicator colors");
+        sender.sendMessage("§7/bf config instability-colors add <color> §f- Add color (yellow, orange, red, etc.)");
+        sender.sendMessage("§7/bf config instability-colors remove <color> §f- Remove color");
+        sender.sendMessage("");
+
+        sender.sendMessage("§e=== Disabled Gamemodes ===");
+        sender.sendMessage(
+                "§7/bf config disabled-gamemodes list §f- View gamemodes where stability is disabled");
+        sender.sendMessage(
+                "§7/bf config disabled-gamemodes add <gamemode> §f- Add gamemode to disabled list");
+        sender.sendMessage(
+                "§7/bf config disabled-gamemodes remove <gamemode> §f- Remove gamemode from disabled list");
+        sender.sendMessage("");
+    }
+
     @Subcommand("reload")
     public void onReload(CommandSender sender) {
         BridgeFallsPlugin.getInstance().reloadConfig();
@@ -100,6 +172,42 @@ public class BridgeFallsCommand extends BaseCommand {
         Map<String, String> ph = new HashMap<>();
         ph.put("key", "time-to-check");
         ph.put("value", String.valueOf(plugin.getTimeToCheckTicks()));
+        sender.sendMessage(plugin.getMessage("command.config.number-updated", ph));
+    }
+
+    @Subcommand("config fall-delay-minutes")
+    @CommandCompletion("0|1|5|10|15|30|60")
+    public void onConfigFallDelayMinutes(CommandSender sender, String value) {
+        BridgeFallsPlugin plugin = BridgeFallsPlugin.getInstance();
+
+        double minutes;
+        try {
+            minutes = Double.parseDouble(value);
+        } catch (NumberFormatException e) {
+            Map<String, String> ph = new HashMap<>();
+            ph.put("key", "fall-delay-minutes");
+            ph.put("value", value);
+            ph.put("min", "0");
+            sender.sendMessage(plugin.getMessage("command.config.number-invalid", ph));
+            return;
+        }
+
+        if (minutes < 0.0D) {
+            Map<String, String> ph = new HashMap<>();
+            ph.put("key", "fall-delay-minutes");
+            ph.put("value", value);
+            ph.put("min", "0");
+            sender.sendMessage(plugin.getMessage("command.config.number-invalid", ph));
+            return;
+        }
+
+        plugin.getConfig().set("fall-delay-minutes", minutes);
+        plugin.saveConfig();
+        plugin.reloadConfig();
+
+        Map<String, String> ph = new HashMap<>();
+        ph.put("key", "fall-delay-minutes");
+        ph.put("value", String.valueOf(plugin.getConfig().getDouble("fall-delay-minutes", 0.0D)));
         sender.sendMessage(plugin.getMessage("command.config.number-updated", ph));
     }
 
@@ -206,6 +314,23 @@ public class BridgeFallsCommand extends BaseCommand {
     @CommandCompletion("@bf_instability_colors")
     public void onRemoveInstabilityColor(CommandSender sender, String color) {
         handleStringListRemove(sender, "instability-colors", "instability-colors", color);
+    }
+
+    @Subcommand("config disabled-gamemodes list")
+    public void onListDisabledGamemodes(CommandSender sender) {
+        handleListList(sender, "disabled-gamemodes", "disabled-gamemodes");
+    }
+
+    @Subcommand("config disabled-gamemodes add")
+    @CommandCompletion("@bf_disabled_gamemodes_add")
+    public void onAddDisabledGamemode(CommandSender sender, String gamemodeName) {
+        handleGamemodeListAdd(sender, "disabled-gamemodes", "disabled-gamemodes", gamemodeName);
+    }
+
+    @Subcommand("config disabled-gamemodes remove")
+    @CommandCompletion("@bf_disabled_gamemodes")
+    public void onRemoveDisabledGamemode(CommandSender sender, String gamemodeName) {
+        handleGamemodeListRemove(sender, "disabled-gamemodes", "disabled-gamemodes", gamemodeName);
     }
 
     private void handleBooleanConfig(CommandSender sender, String path, String displayKey, String value) {
@@ -411,6 +536,86 @@ public class BridgeFallsCommand extends BaseCommand {
         }
 
         String canonical = value.toLowerCase();
+        List<String> list = plugin.getConfig().getStringList(path);
+
+        boolean removed = list.removeIf(entry -> entry.equalsIgnoreCase(canonical));
+        if (!removed) {
+            Map<String, String> ph = new HashMap<>();
+            ph.put("key", displayKey);
+            ph.put("value", canonical);
+            sender.sendMessage(plugin.getMessage("command.config.list-not-found", ph));
+            return;
+        }
+
+        plugin.getConfig().set(path, list);
+        plugin.saveConfig();
+        plugin.reloadConfig();
+
+        Map<String, String> ph = new HashMap<>();
+        ph.put("key", displayKey);
+        ph.put("value", canonical);
+        sender.sendMessage(plugin.getMessage("command.config.list-removed", ph));
+    }
+
+    private void handleGamemodeListAdd(CommandSender sender, String path, String displayKey, String gamemodeName) {
+        BridgeFallsPlugin plugin = BridgeFallsPlugin.getInstance();
+
+        if (gamemodeName == null) {
+            gamemodeName = "";
+        }
+
+        GameMode gameMode;
+        try {
+            gameMode = GameMode.valueOf(gamemodeName.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            Map<String, String> ph = new HashMap<>();
+            ph.put("value", gamemodeName);
+            sender.sendMessage(plugin.getMessage("command.config.material-invalid", ph));
+            return;
+        }
+
+        String canonical = gameMode.name().toLowerCase();
+        List<String> list = plugin.getConfig().getStringList(path);
+
+        for (String entry : list) {
+            if (entry.equalsIgnoreCase(canonical)) {
+                Map<String, String> ph = new HashMap<>();
+                ph.put("key", displayKey);
+                ph.put("value", canonical);
+                sender.sendMessage(plugin.getMessage("command.config.list-already", ph));
+                return;
+            }
+        }
+
+        list.add(canonical);
+        plugin.getConfig().set(path, list);
+        plugin.saveConfig();
+        plugin.reloadConfig();
+
+        Map<String, String> ph = new HashMap<>();
+        ph.put("key", displayKey);
+        ph.put("value", canonical);
+        sender.sendMessage(plugin.getMessage("command.config.list-added", ph));
+    }
+
+    private void handleGamemodeListRemove(CommandSender sender, String path, String displayKey, String gamemodeName) {
+        BridgeFallsPlugin plugin = BridgeFallsPlugin.getInstance();
+
+        if (gamemodeName == null) {
+            gamemodeName = "";
+        }
+
+        GameMode gameMode;
+        try {
+            gameMode = GameMode.valueOf(gamemodeName.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            Map<String, String> ph = new HashMap<>();
+            ph.put("value", gamemodeName);
+            sender.sendMessage(plugin.getMessage("command.config.material-invalid", ph));
+            return;
+        }
+
+        String canonical = gameMode.name().toLowerCase();
         List<String> list = plugin.getConfig().getStringList(path);
 
         boolean removed = list.removeIf(entry -> entry.equalsIgnoreCase(canonical));

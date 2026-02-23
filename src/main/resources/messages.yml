@@ -1,5 +1,4 @@
 messages:
-  block.always-stable-placed: "[GREEN] Block marked as always stable (always-stable-blocks list in config) placed without structure check."
   block.height-ok: "[GREEN] Block height: {height}"
   block.place.error.header: "Cannot place {block} at {x}, {y}, {z}: "
   block.place.error.no-below: "no block below (void) to support this block."

@@ -6,12 +6,16 @@ import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
+import org.bukkit.block.BlockState;
+import org.bukkit.block.Container;
+import org.bukkit.block.TileState;
 import org.bukkit.Color;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitTask;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.inventory.InventoryHolder;
 
 import java.io.File;
 import java.io.IOException;
@@ -22,14 +26,16 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.bukkit.GameMode;
 
 public class BridgeFallsPlugin extends JavaPlugin {
     private boolean bridgeFallsEnabled = true;
-    private boolean fallingEnabled = true;
+    private boolean fallingBlockEnabled = true;
     private Set<Material> noRestBlocksVertical = new HashSet<>();
     private Set<Material> noRestBlocksHorizontal = new HashSet<>();
     private Set<Material> alwaysStableBlocks = new HashSet<>();
     private Set<Material> floatingSupportBlocks = new HashSet<>();
+    private Set<GameMode> disabledGamemodes = new HashSet<>();
     private final Map<Location, Long> unstableBlocks = new HashMap<>();
     private long fallDelayMillis = 60_000L;
     private int supportRadius = 2;
@@ -59,6 +65,7 @@ public class BridgeFallsPlugin extends JavaPlugin {
         loadUnstableBlocks();
         loadMessages();
         loadInstabilityColors();
+        loadDisabledGamemodes();
 
         getServer().getPluginManager().registerEvents(new BridgeFallsListener(), this);
 
@@ -74,6 +81,27 @@ public class BridgeFallsPlugin extends JavaPlugin {
                 c -> getConfig().getStringList("floating-support-blocks"));
         manager.getCommandCompletions().registerAsyncCompletion("bf_instability_colors",
                 c -> getConfig().getStringList("instability-colors"));
+
+        manager.getCommandCompletions().registerAsyncCompletion("bf_disabled_gamemodes",
+                c -> getConfig().getStringList("disabled-gamemodes"));
+
+        manager.getCommandCompletions().registerAsyncCompletion("bf_disabled_gamemodes_add", c -> {
+            List<String> existing = getConfig().getStringList("disabled-gamemodes");
+            Set<String> existingUpper = new HashSet<>();
+            for (String s : existing) {
+                if (s != null) {
+                    existingUpper.add(s.toUpperCase());
+                }
+            }
+            List<String> result = new ArrayList<>();
+            for (GameMode gm : GameMode.values()) {
+                String name = gm.name();
+                if (!existingUpper.contains(name)) {
+                    result.add(name.toLowerCase());
+                }
+            }
+            return result;
+        });
 
         manager.getCommandCompletions().registerAsyncCompletion("bf_no_rest_vertical_add", c -> {
             List<String> existing = getConfig().getStringList("no-rest-blocks-vertical");
@@ -158,6 +186,7 @@ public class BridgeFallsPlugin extends JavaPlugin {
         loadNoRestBlocks();
         loadMessages();
         loadInstabilityColors();
+        loadDisabledGamemodes();
         restartUnstableCheckTask();
     }
 
@@ -254,6 +283,17 @@ public class BridgeFallsPlugin extends JavaPlugin {
         return floatingSupportBlocks.contains(material);
     }
 
+    public boolean isGamemodeDisabled(GameMode gameMode) {
+        if (gameMode == null) {
+            return false;
+        }
+        return disabledGamemodes.contains(gameMode);
+    }
+
+    public Set<GameMode> getDisabledGamemodes() {
+        return new HashSet<>(disabledGamemodes);
+    }
+
     public boolean isHorizontalSupportProvider(Material material) {
         if (material == null) {
             return false;
@@ -271,10 +311,19 @@ public class BridgeFallsPlugin extends JavaPlugin {
     }
 
     public void addUnstableBlock(Location location) {
+        Block block = location.getBlock();
+
+        BlockState state = block.getState();
+
+        if (state instanceof InventoryHolder ||
+                state instanceof TileState) {
+            log("Not marking block at " + location + " as unstable because it is a container.");
+            return;
+        }
+
         if (location == null || location.getWorld() == null) {
             log("Attempted to add an unstable block with null location or world.");
             return;
-
         }
 
         synchronized (unstableBlocks) {
@@ -441,6 +490,22 @@ public class BridgeFallsPlugin extends JavaPlugin {
         alwaysStableBlocks.clear();
         floatingSupportBlocks.clear();
 
+        List<String> stableBlocksWithNoSupport = getConfig().getStringList("always-stable-blocks-but-with-no-support");
+        for (String name : stableBlocksWithNoSupport) {
+            if (name == null) {
+                continue;
+            }
+
+            Material material = Material.matchMaterial(name.toUpperCase());
+            if (material == null) {
+                getLogger().warning("Unknown material in always-stable-blocks-but-with-no-support: " + name);
+                continue;
+            }
+            noRestBlocksVertical.add(material);
+            noRestBlocksHorizontal.add(material);
+            alwaysStableBlocks.add(material);
+        }
+
         List<String> verticalEntries = getConfig().getStringList("no-rest-blocks-vertical");
         for (String name : verticalEntries) {
             if (name == null) {
@@ -539,16 +604,16 @@ public class BridgeFallsPlugin extends JavaPlugin {
         fallingBlockDropItem = getConfig().getBoolean("falling-block-drop-item", false);
         fallingBlockHurtEntities = getConfig().getBoolean("falling-block-hurt-entities", true);
 
-        fallingEnabled = getConfig().getBoolean("falling-enabled", true);
+        fallingBlockEnabled = getConfig().getBoolean("falling-block", true);
     }
 
-    public boolean isFallingEnabled() {
-        return fallingEnabled;
+    public boolean isFallingBlockEnabled() {
+        return this.fallingBlockEnabled;
     }
 
-    public void setFallingEnabled(boolean enabled) {
-        boolean wasEnabled = this.fallingEnabled;
-        this.fallingEnabled = enabled;
+    public void setFallingBlockEnabled(boolean enabled) {
+        boolean wasEnabled = this.fallingBlockEnabled;
+        this.fallingBlockEnabled = enabled;
 
         if (enabled && !wasEnabled) {
             long now = System.currentTimeMillis();
@@ -615,6 +680,21 @@ public class BridgeFallsPlugin extends JavaPlugin {
         }
 
         messagesConfig = YamlConfiguration.loadConfiguration(file);
+    }
+
+    private void loadDisabledGamemodes() {
+        disabledGamemodes.clear();
+
+        List<String> gamemodeEntries = getConfig().getStringList("disabled-gamemodes");
+        for (String name : gamemodeEntries) {
+            if (name == null) {
+                continue;
+            }
+
+            GameMode gameMode = GameMode.valueOf(name.toUpperCase());
+
+            disabledGamemodes.add(gameMode);
+        }
     }
 
     private void saveUnstableBlocks() {
@@ -706,21 +786,17 @@ public class BridgeFallsPlugin extends JavaPlugin {
                     }
                 }
 
-                if (fallingEnabled && fallDelayMillis > 0 && now - createdAt >= fallDelayMillis) {
+                if (isFallingBlockEnabled() && fallDelayMillis > 0 && now - createdAt >= fallDelayMillis) {
                     toRemove.add(loc);
                     log("Block at " + block.getLocation() + " is now falling.");
                     toFall.add(block);
                     continue;
                 }
 
-                if (!fallingEnabled) {
-                    BridgeFallsListener.showRedOutline(block);
-                    continue;
-                }
-
-                if (fallDelayMillis <= 0) {
-                    BridgeFallsListener.showRedOutline(block);
+                if (!isFallingBlockEnabled()) {
+                    BridgeFallsListener.showBlueOutline(block);
                 } else {
+
                     long elapsed = now - createdAt;
                     double ratio = Math.max(0.0, Math.min(1.0, (double) elapsed / (double) fallDelayMillis));
 

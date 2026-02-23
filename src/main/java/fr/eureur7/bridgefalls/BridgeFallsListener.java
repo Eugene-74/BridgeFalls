@@ -29,8 +29,13 @@ public class BridgeFallsListener implements Listener {
             return;
         }
 
-        Block brokenBlock = event.getBlock();
+        BridgeFallsPlugin plugin = BridgeFallsPlugin.getInstance();
         Player player = event.getPlayer();
+        if (plugin.isGamemodeDisabled(player.getGameMode())) {
+            return;
+        }
+
+        Block brokenBlock = event.getBlock();
 
         BridgeFallsPlugin.getInstance().getServer().getScheduler().runTaskLater(BridgeFallsPlugin.getInstance(), () -> {
             int radius = BridgeFallsPlugin.getInstance().getSupportRadius();
@@ -47,11 +52,14 @@ public class BridgeFallsListener implements Listener {
         Player player = event.getPlayer();
         BridgeFallsPlugin plugin = BridgeFallsPlugin.getInstance();
 
+        if (plugin.isGamemodeDisabled(player.getGameMode())) {
+            return;
+        }
+
         Block block = event.getBlock();
         Material placedType = block.getType();
 
         if (plugin.isAlwaysStable(placedType)) {
-            player.sendMessage(plugin.getMessage("block.always-stable-placed"));
             return;
         }
 
@@ -67,6 +75,7 @@ public class BridgeFallsListener implements Listener {
         if (!hasDirectSupport && !hasIndirectSupport && topRadius > 0) {
             hasTopSupport = hasTopSupportWithinDistance(block, topRadius);
         }
+
         int anchorRadius = plugin.getAnchorSupportRadius();
         boolean hasAnchor = hasAnchor(block, anchorRadius);
 
@@ -153,7 +162,7 @@ public class BridgeFallsListener implements Listener {
                 delayInfo = "";
             }
 
-            player.sendMessage("§c" + reasonPrefix + reasonCore + reasonHorizontal + delayInfo);
+            player.sendMessage("§c" + reasonPrefix + reasonCore + reasonHorizontal + "\n" + delayInfo);
         }
     }
 
@@ -460,7 +469,6 @@ public class BridgeFallsListener implements Listener {
         BridgeFallsPlugin plugin = BridgeFallsPlugin.getInstance();
         Set<Location> alreadyUnstable = plugin.getUnstableBlocks();
         int newlyUnstableCount = 0;
-        radius = radius / 2;
         for (int dx = -radius; dx <= radius; dx++) {
             for (int dy = -radius; dy <= radius; dy++) {
                 for (int dz = -radius; dz <= radius; dz++) {
@@ -482,9 +490,13 @@ public class BridgeFallsListener implements Listener {
                         }
 
                         plugin.addUnstableBlock(loc);
-                        showRedOutline(candidate);
+                        showBlueOutline(candidate);
                         playUnstableDenySound(candidate.getLocation());
                     } else {
+                        if (plugin.isAlwaysStable(candidate.getType())) {
+                            continue;
+                        }
+
                         int anchorRadius = plugin.getAnchorSupportRadius();
                         if (dx <= -anchorRadius || dx >= anchorRadius || dy <= -anchorRadius || dy >= anchorRadius
                                 || dz <= -anchorRadius || dz >= anchorRadius) {
@@ -499,7 +511,7 @@ public class BridgeFallsListener implements Listener {
                             }
 
                             plugin.addUnstableBlock(loc);
-                            showRedOutline(candidate);
+                            showBlueOutline(candidate);
                             playUnstableDenySound(candidate.getLocation());
                         }
                     }
@@ -516,8 +528,8 @@ public class BridgeFallsListener implements Listener {
         }
     }
 
-    public static void showRedOutline(Block block) {
-        showColoredOutline(block, Color.RED);
+    public static void showBlueOutline(Block block) {
+        showColoredOutline(block, Color.BLUE);
     }
 
     public static void showColoredOutline(Block block, Color color) {

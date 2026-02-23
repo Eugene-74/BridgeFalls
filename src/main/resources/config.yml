@@ -5,8 +5,14 @@ support-radius: 32
 top-support-radius: 16
 anchor-support-radius: 5
 
-fall-delay-minutes: 0.1
-time-to-check: 200 # ticks
+fall-delay-minutes: 15
+time-to-check: 20 # ticks
+
+# Gamemodes where BridgeFalls stability checks are disabled
+# (e.g., creative mode, spectator mode, etc.)
+disabled-gamemodes:
+  - creative
+  - spectator
 
 # Instability particle colors (order: start, middle, end)
 instability-colors:
@@ -26,8 +32,6 @@ no-rest-blocks-vertical:
   - lava
   - water
   - fire
-  - powder_snow
-  - scaffolding
 
 no-rest-blocks-horizontal:
   - lava
@@ -62,6 +66,7 @@ always-stable-blocks:
   - bedrock
   - water
   - lava
+  # all types of leaves are considered stable to prevent excessive falling due to leaf decay
   - acacia_leaves
   - birch_leaves
   - dark_oak_leaves
@@ -92,11 +97,298 @@ always-stable-blocks:
   - red_concrete_powder
   - black_concrete_powder
 
+  # Marines flowers and plants
+  - seagrass
+  - tall_seagrass
+  - kelp
+  - kelp_plant
+  - sea_pickle
+  - tube_coral
+  - brain_coral
+  - bubble_coral
+  - fire_coral
+  - horn_coral
+  - tube_coral_fan
+  - brain_coral_fan
+  - bubble_coral_fan
+  - fire_coral_fan
+  - horn_coral_fan
+  - tube_coral_wall_fan
+  - brain_coral_wall_fan
+  - bubble_coral_wall_fan
+  - fire_coral_wall_fan
+  - horn_coral_wall_fan
+  - dead_tube_coral
+  - dead_brain_coral
+  - dead_bubble_coral
+  - dead_fire_coral
+  - dead_horn_coral
+  - dead_tube_coral_fan
+  - dead_brain_coral_fan
+  - dead_bubble_coral_fan
+  - dead_fire_coral_fan
+  - dead_horn_coral_fan
+  - dead_tube_coral_wall_fan
+  - dead_brain_coral_wall_fan
+  - dead_bubble_coral_wall_fan
+  - dead_fire_coral_wall_fan
+  - dead_horn_coral_wall_fan
 
+always-stable-blocks-but-with-no-support:
+  - torch
+  - wall_torch
+  - redstone_torch
+  - redstone_wall_torch
+  - soul_torch
+  - soul_wall_torch
+  - lantern
+  - soul_lantern
+  - end_rod
+
+  - redstone_wire
+  - repeater
+  - comparator
+  - lever
+  - tripwire
+  - tripwire_hook
+  - daylight_detector
+  - target
+
+  - rail
+  - powered_rail
+  - detector_rail
+  - activator_rail
+
+  - stone_button
+  - polished_blackstone_button
+  - oak_button
+  - spruce_button
+  - birch_button
+  - jungle_button
+  - acacia_button
+  - dark_oak_button
+  - mangrove_button
+  - cherry_button
+  - bamboo_button
+  - crimson_button
+  - warped_button
+  - pale_oak_button
+  - iron_pressure_plate
+  - light_weighted_pressure_plate
+  - heavy_weighted_pressure_plate
+  - stone_pressure_plate
+  - polished_blackstone_pressure_plate
+  - oak_pressure_plate
+  - spruce_pressure_plate
+  - birch_pressure_plate
+  - jungle_pressure_plate
+  - acacia_pressure_plate
+  - dark_oak_pressure_plate
+  - mangrove_pressure_plate
+  - cherry_pressure_plate
+  - bamboo_pressure_plate
+  - crimson_pressure_plate
+  - warped_pressure_plate
+  - pale_oak_pressure_plate
+
+  - ladder
+  - vine
+  - weeping_vines
+  - weeping_vines_plant
+  - twisting_vines
+  - twisting_vines_plant
+  - cave_vines
+  - cave_vines_plant
+  - glow_lichen
+  - hanging_roots
+
+  - oak_sign
+  - spruce_sign
+  - birch_sign
+  - jungle_sign
+  - acacia_sign
+  - dark_oak_sign
+  - mangrove_sign
+  - cherry_sign
+  - bamboo_sign
+  - crimson_sign
+  - warped_sign
+  - pale_oak_sign
+  - oak_wall_sign
+  - spruce_wall_sign
+  - birch_wall_sign
+  - jungle_wall_sign
+  - acacia_wall_sign
+  - dark_oak_wall_sign
+  - mangrove_wall_sign
+  - cherry_wall_sign
+  - bamboo_wall_sign
+  - crimson_wall_sign
+  - warped_wall_sign
+  - pale_oak_wall_sign
+  - oak_hanging_sign
+  - spruce_hanging_sign
+  - birch_hanging_sign
+  - jungle_hanging_sign
+  - acacia_hanging_sign
+  - dark_oak_hanging_sign
+  - mangrove_hanging_sign
+  - cherry_hanging_sign
+  - bamboo_hanging_sign
+  - crimson_hanging_sign
+  - warped_hanging_sign
+  - pale_oak_hanging_sign
+  - oak_wall_hanging_sign
+  - spruce_wall_hanging_sign
+  - birch_wall_hanging_sign
+  - jungle_wall_hanging_sign
+  - acacia_wall_hanging_sign
+  - dark_oak_wall_hanging_sign
+  - mangrove_wall_hanging_sign
+  - cherry_wall_hanging_sign
+  - bamboo_wall_hanging_sign
+  - crimson_wall_hanging_sign
+  - warped_wall_hanging_sign
+  - pale_oak_wall_hanging_sign
+  - white_banner
+  - orange_banner
+  - magenta_banner
+  - light_blue_banner
+  - yellow_banner
+  - lime_banner
+  - pink_banner
+  - gray_banner
+  - light_gray_banner
+  - cyan_banner
+  - purple_banner
+  - blue_banner
+  - brown_banner
+  - green_banner
+  - red_banner
+  - black_banner
+  - white_wall_banner
+  - orange_wall_banner
+  - magenta_wall_banner
+  - light_blue_wall_banner
+  - yellow_wall_banner
+  - lime_wall_banner
+  - pink_wall_banner
+  - gray_wall_banner
+  - light_gray_wall_banner
+  - cyan_wall_banner
+  - purple_wall_banner
+  - blue_wall_banner
+  - brown_wall_banner
+  - green_wall_banner
+  - red_wall_banner
+  - black_wall_banner
+
+  - carpet
+  - moss_carpet
+  - pale_moss_carpet
+  - snow
+  - lily_pad
+  - flower_pot
+  - sea_pickle
+  - turtle_egg
+
+  - dandelion
+  - poppy
+  - blue_orchid
+  - allium
+  - azure_bluet
+  - red_tulip
+  - orange_tulip
+  - white_tulip
+  - pink_tulip
+  - oxeye_daisy
+  - cornflower
+  - lily_of_the_valley
+  - wither_rose
+  - torchflower
+  - open_eyeblossom
+  - closed_eyeblossom
+  - sunflower
+  - lilac
+  - rose_bush
+  - peony
+  - short_grass
+  - fern
+  - large_fern
+  - dead_bush
+  - bush
+  - sweet_berry_bush
+  - cactus
+  - sugar_cane
+  - bamboo
+  - bamboo_sapling
+  - small_dripleaf
+  - big_dripleaf
+  - big_dripleaf_stem
+  - spore_blossom
+  - pitcher_plant
+  - red_mushroom
+  - brown_mushroom
+  - crimson_fungus
+  - warped_fungus
+  - crimson_roots
+  - warped_roots
+  - nether_sprouts
+  - mangrove_propagule
+
+  - wheat
+  - carrots
+  - potatoes
+  - beetroot
+  - melon_stem
+  - pumpkin_stem
+  - attached_melon_stem
+  - attached_pumpkin_stem
+  - nether_wart
+  - cocoa
+  - pitcher_crop
+
+  - seagrass
+  - tall_seagrass
+  - kelp
+  - kelp_plant
+  - tube_coral
+  - brain_coral
+  - bubble_coral
+  - fire_coral
+  - horn_coral
+  - tube_coral_fan
+  - brain_coral_fan
+  - bubble_coral_fan
+  - fire_coral_fan
+  - horn_coral_fan
+  - tube_coral_wall_fan
+  - brain_coral_wall_fan
+  - bubble_coral_wall_fan
+  - fire_coral_wall_fan
+  - horn_coral_wall_fan
+  - dead_tube_coral
+  - dead_brain_coral
+  - dead_bubble_coral
+  - dead_fire_coral
+  - dead_horn_coral
+  - dead_tube_coral_fan
+  - dead_brain_coral_fan
+  - dead_bubble_coral_fan
+  - dead_fire_coral_fan
+  - dead_horn_coral_fan
+  - dead_tube_coral_wall_fan
+  - dead_brain_coral_wall_fan
+  - dead_bubble_coral_wall_fan
+  - dead_fire_coral_wall_fan
+  - dead_horn_coral_wall_fan
 
 # Blocks considered as "floating":
 # they can rest on water as if it was solid support.
 floating-support-blocks:
+  - ice
+  - packed_ice
+  - blue_ice
   - lily_pad
   - seagrass
   - tall_seagrass
