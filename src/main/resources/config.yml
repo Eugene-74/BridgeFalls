@@ -1,4 +1,24 @@
-debug: true
+debug: false
+
+
+support-radius: 5
+top-support-radius: 2
+
+fall-delay-minutes: 0.1
+
+# Instability particle colors (order: start, middle, end)
+instability-colors:
+  - yellow
+  - orange
+  - red
+
+allow-placing-unstable-blocks: true
+
+# Behavior of falling blocks (FallingBlock) created by the plugin
+falling-block: true
+falling-block-drop-item: true
+falling-block-hurt-entities: true
+
 
 no-rest-blocks-vertical:
   - lava
@@ -13,7 +33,7 @@ no-rest-blocks-horizontal:
   - fire
   - powder_snow
   - scaffolding
-# Blocs qui tombent nativement (toujours stables pour le plugin)
+  # Blocks that fall by default in Minecraft (always stable for the plugin)
   - sand
   - suspicious_sand
   - red_sand
@@ -48,7 +68,7 @@ always-stable-blocks:
   - spruce_leaves
   - mangrove_leaves
   - cherry_leaves
-  # Blocs qui tombent nativement (toujours stables pour le plugin)
+  # Blocks that fall by default in Minecraft (always stable for the plugin)
   - sand
   - suspicious_sand
   - red_sand
@@ -71,16 +91,10 @@ always-stable-blocks:
   - black_concrete_powder
 
 
-# Rayon de recherche des blocs de support / blocs instables (en blocs)
-support-radius: 5
 
-# Rayon vertical vers le HAUT dans lequel un bloc
-# 0 = désactivé
-top-support-radius: 2
-
-# Blocs considérés comme "flottants" :
-# ils peuvent reposer sur l'eau comme si c'était un support solide.
-floating-support-blocks: 
+# Blocks considered as "floating":
+# they can rest on water as if it was solid support.
+floating-support-blocks:
   - lily_pad
   - seagrass
   - tall_seagrass
@@ -100,25 +114,4 @@ floating-support-blocks:
   - mangrove_log
   - cherry_log
 
-fall-delay-minutes: 0.1
-
-# Couleurs des particules d'instabilité (dans l'ordre : début, milieu, fin)
-instability-colors:
-  - yellow
-  - orange
-  - red
-
-# Si true, on peut poser des blocs sans support :
-#   - ils seront marqués comme instables
-#   - ils pourront ensuite tomber selon la logique du plugin
-# Si false, la pose d'un bloc instable est annulée.
-allow-placing-unstable-blocks: true
-
-# Comportement des blocs qui tombent (FallingBlock) créés par le plugin
-falling-block-drop-item: false
-falling-block-hurt-entities: true
-
-# Active / désactive temporairement la chute des blocs instables.
-# Quand remis sur true, tous les timers de chute repartent de zéro.
-falling-enabled: true
 

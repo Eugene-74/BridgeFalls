@@ -36,62 +36,6 @@ public class BridgeFallsCommand extends BaseCommand {
         sender.sendMessage(BridgeFallsPlugin.getInstance().getMessage("command.disable"));
     }
 
-    @Subcommand("list-nonstruct")
-    public void onListNonStruct(CommandSender sender) {
-        BridgeFallsPlugin plugin = BridgeFallsPlugin.getInstance();
-
-        Set<Material> vertical = plugin.getNoRestBlocksVertical();
-        Set<Material> horizontal = plugin.getNoRestBlocksHorizontal();
-
-        String verticalList = vertical.stream()
-                .map(m -> m.name().toLowerCase())
-                .sorted()
-                .collect(Collectors.joining(", "));
-
-        String horizontalList = horizontal.stream()
-                .map(m -> m.name().toLowerCase())
-                .sorted()
-                .collect(Collectors.joining(", "));
-
-        Map<String, String> placeholders = new HashMap<>();
-
-        placeholders.put("list", verticalList);
-        sender.sendMessage(BridgeFallsPlugin.getInstance().getMessage("command.list-nonstruct.vertical", placeholders));
-
-        placeholders.put("list", horizontalList);
-        sender.sendMessage(
-                BridgeFallsPlugin.getInstance().getMessage("command.list-nonstruct.horizontal", placeholders));
-    }
-
-    @Subcommand("list-struct")
-    public void onListStruct(CommandSender sender) {
-        BridgeFallsPlugin plugin = BridgeFallsPlugin.getInstance();
-
-        Set<Material> nonStructVertical = plugin.getNoRestBlocksVertical();
-        Set<Material> nonStructHorizontal = plugin.getNoRestBlocksHorizontal();
-
-        // On affiche surtout la différence de logique, pas tous les matériaux
-        // possibles.
-        String nonStructVerticalList = nonStructVertical.stream()
-                .map(m -> m.name().toLowerCase()).sorted().collect(Collectors.joining(", "));
-        String nonStructHorizontalList = nonStructHorizontal.stream()
-                .map(m -> m.name().toLowerCase()).sorted().collect(Collectors.joining(", "));
-
-        sender.sendMessage(BridgeFallsPlugin.getInstance().getMessage("command.list-struct.vertical-info"));
-        sender.sendMessage(BridgeFallsPlugin.getInstance().getMessage("command.list-struct.horizontal-info"));
-
-        Map<String, String> placeholders = new HashMap<>();
-        placeholders.put("list", nonStructVerticalList);
-        sender.sendMessage(
-                BridgeFallsPlugin.getInstance().getMessage("command.list-struct.nonstruct-vertical", placeholders));
-
-        placeholders.put("list", nonStructHorizontalList);
-        sender.sendMessage(
-                BridgeFallsPlugin.getInstance().getMessage("command.list-struct.nonstruct-horizontal", placeholders));
-    }
-
-    // ====== CONFIG BOOLÉENS ======
-
     @Subcommand("config debug")
     @CommandCompletion("true|false")
     public void onConfigDebug(CommandSender sender, @Optional String value) {
@@ -104,53 +48,23 @@ public class BridgeFallsCommand extends BaseCommand {
         handleBooleanConfig(sender, "allow-placing-unstable-blocks", "allow-placing-unstable-blocks", value);
     }
 
-    @Subcommand("config falling-block-drop-item")
+    @Subcommand("config falling-block drop-item")
     @CommandCompletion("true|false")
     public void onConfigFallingDropItem(CommandSender sender, @Optional String value) {
         handleBooleanConfig(sender, "falling-block-drop-item", "falling-block-drop-item", value);
     }
 
-    @Subcommand("config falling-block-hurt-entities")
+    @Subcommand("config falling-block hurt-entities")
     @CommandCompletion("true|false")
     public void onConfigFallingHurtEntities(CommandSender sender, @Optional String value) {
         handleBooleanConfig(sender, "falling-block-hurt-entities", "falling-block-hurt-entities", value);
     }
 
-    @Subcommand("config falling-enabled")
-    @CommandCompletion("true|false")
+    @Subcommand("config falling-block")
+    @CommandCompletion("enable|disable")
     public void onConfigFallingEnabled(CommandSender sender, @Optional String value) {
-        BridgeFallsPlugin plugin = BridgeFallsPlugin.getInstance();
-
-        boolean current = plugin.getConfig().getBoolean("falling-enabled", true);
-        boolean newValue;
-
-        if (value == null || value.isEmpty()) {
-            newValue = !current; // toggle
-        } else if (value.equalsIgnoreCase("true")) {
-            newValue = true;
-        } else if (value.equalsIgnoreCase("false")) {
-            newValue = false;
-        } else {
-            Map<String, String> ph = new HashMap<>();
-            ph.put("key", "falling-enabled");
-            sender.sendMessage(plugin.getMessage("command.config.boolean-invalid", ph));
-            return;
-        }
-
-        plugin.getConfig().set("falling-enabled", newValue);
-        plugin.saveConfig();
-
-        // Met à jour l'état en mémoire et, si on réactive,
-        // remet à zéro les timers de tous les blocs instables.
-        plugin.setFallingEnabled(newValue);
-
-        Map<String, String> ph = new HashMap<>();
-        ph.put("key", "falling-enabled");
-        ph.put("value", String.valueOf(newValue));
-        sender.sendMessage(plugin.getMessage("command.config.boolean-updated", ph));
+        handleBooleanConfig(sender, "falling-block", "falling-block", value);
     }
-
-    // ====== LISTES DE MATÉRIAUX ======
 
     @Subcommand("config no-rest-vertical list")
     public void onListNoRestVertical(CommandSender sender) {
@@ -220,8 +134,6 @@ public class BridgeFallsCommand extends BaseCommand {
         handleMaterialListRemove(sender, "floating-support-blocks", "floating-support-blocks", materialName);
     }
 
-    // ====== LISTE DES COULEURS D'INSTABILITÉ ======
-
     @Subcommand("config instability-colors list")
     public void onListInstabilityColors(CommandSender sender) {
         handleListList(sender, "instability-colors", "instability-colors");
@@ -238,8 +150,6 @@ public class BridgeFallsCommand extends BaseCommand {
         handleStringListRemove(sender, "instability-colors", "instability-colors", color);
     }
 
-    // ====== MÉTHODES UTILITAIRES ======
-
     private void handleBooleanConfig(CommandSender sender, String path, String displayKey, String value) {
         BridgeFallsPlugin plugin = BridgeFallsPlugin.getInstance();
 
@@ -248,9 +158,9 @@ public class BridgeFallsCommand extends BaseCommand {
 
         if (value == null || value.isEmpty()) {
             newValue = !current; // toggle
-        } else if (value.equalsIgnoreCase("true")) {
+        } else if (value.equalsIgnoreCase("true") || value.equalsIgnoreCase("enable")) {
             newValue = true;
-        } else if (value.equalsIgnoreCase("false")) {
+        } else if (value.equalsIgnoreCase("false") || value.equalsIgnoreCase("disable")) {
             newValue = false;
         } else {
             Map<String, String> ph = new HashMap<>();

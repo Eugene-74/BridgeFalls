@@ -8,17 +8,16 @@ import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.Color;
 import org.bukkit.plugin.java.JavaPlugin;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -61,7 +60,6 @@ public class BridgeFallsPlugin extends JavaPlugin {
 
         PaperCommandManager manager = new PaperCommandManager(this);
 
-        // Complétions pour les listes de configuration
         manager.getCommandCompletions().registerAsyncCompletion("bf_no_rest_vertical",
                 c -> getConfig().getStringList("no-rest-blocks-vertical"));
         manager.getCommandCompletions().registerAsyncCompletion("bf_no_rest_horizontal",
@@ -73,7 +71,6 @@ public class BridgeFallsPlugin extends JavaPlugin {
         manager.getCommandCompletions().registerAsyncCompletion("bf_instability_colors",
                 c -> getConfig().getStringList("instability-colors"));
 
-        // Complétions pour les ajouts : tous les matériaux - ceux déjà dans la liste
         manager.getCommandCompletions().registerAsyncCompletion("bf_no_rest_vertical_add", c -> {
             List<String> existing = getConfig().getStringList("no-rest-blocks-vertical");
             Set<String> existingUpper = new HashSet<>();
@@ -148,10 +145,6 @@ public class BridgeFallsPlugin extends JavaPlugin {
 
         manager.registerCommand(new BridgeFallsCommand());
 
-        // Tâche répétée :
-        // - afficher en continu les particules autour des blocs instables
-        // - les faire tomber après un certain délai
-        // - retirer ceux qui redeviennent stables ou sont détruits
         getServer().getScheduler().runTaskTimer(this, () -> {
             if (!bridgeFallsEnabled) {
                 return;
@@ -175,39 +168,27 @@ public class BridgeFallsPlugin extends JavaPlugin {
 
                     Block block = loc.getBlock();
 
-                    // Si le bloc n'existe plus, on le retire
                     if (block.getType() == Material.AIR) {
                         toRemove.add(loc);
                         continue;
                     }
 
-                    // Si le bloc est redevenu stable, on le retire et on arrête d'afficher les
-                    // particules
                     if (BridgeFallsListener.isBlockSupported(block)) {
                         toRemove.add(loc);
                         continue;
                     }
 
-                    // Si la chute est activée et que le délai est écoulé,
-                    // on marquera ce bloc pour qu'il tombe.
                     if (fallingEnabled && fallDelayMillis > 0 && now - createdAt >= fallDelayMillis) {
                         toRemove.add(loc);
                         toFall.add(block);
                         continue;
                     }
 
-                    // Toujours instable : on affiche/rafraîchit son contour de particules
                     if (!fallingEnabled) {
-                        // Mode "pause" : on continue juste à montrer les blocs instables
-                        // sans faire avancer leur chute.
                         BridgeFallsListener.showRedOutline(block);
                         continue;
                     }
 
-                    // Chute active : couleur selon le temps restant avant la chute (configurable) :
-                    // - 1er tiers : couleur 1
-                    // - 2e tiers : couleur 2
-                    // - 3e tiers : couleur 3
                     if (fallDelayMillis <= 0) {
                         BridgeFallsListener.showRedOutline(block);
                     } else {
@@ -220,7 +201,6 @@ public class BridgeFallsPlugin extends JavaPlugin {
                             BridgeFallsListener.showColoredOutline(block, instabilityColorMiddle);
                         } else {
                             BridgeFallsListener.showColoredOutline(block, instabilityColorEnd);
-                            // Phase rouge : le bloc va bientôt s'effondrer, on joue un son d'alerte
                             BridgeFallsListener.playRedPhaseWarningSound(block.getLocation());
                         }
                     }
@@ -234,8 +214,6 @@ public class BridgeFallsPlugin extends JavaPlugin {
                 }
             }
 
-            // On déclenche la chute des blocs identifiés en dehors du bloc synchronized
-            // pour éviter toute modification concurrente de la map pendant l'itération.
             for (Block blockToFall : toFall) {
                 BridgeFallsListener.startFalling(blockToFall);
             }
@@ -267,12 +245,10 @@ public class BridgeFallsPlugin extends JavaPlugin {
             return true;
         }
 
-        // L'air ne peut jamais servir de support vertical
         if (material == Material.AIR) {
             return true;
         }
 
-        // La décision vient uniquement de la liste de config
         return noRestBlocksVertical.contains(material);
     }
 
@@ -281,12 +257,10 @@ public class BridgeFallsPlugin extends JavaPlugin {
             return true;
         }
 
-        // L'air ne compte jamais comme bloc structurant horizontalement
         if (material == Material.AIR) {
             return true;
         }
 
-        // La décision vient uniquement de la liste de config
         return noRestBlocksHorizontal.contains(material);
     }
 
@@ -340,15 +314,6 @@ public class BridgeFallsPlugin extends JavaPlugin {
         return floatingSupportBlocks.contains(material);
     }
 
-    /**
-     * Indique si un matériau peut servir de support horizontal dans le réseau
-     * de structure.
-     *
-     * Cas particulier souhaité :
-     * - si un bloc est à la fois dans always-stable-blocks et
-     * no-rest-blocks-horizontal, il est stable pour lui-même mais ne sert
-     * jamais de support horizontal pour les autres.
-     */
     public boolean isHorizontalSupportProvider(Material material) {
         if (material == null) {
             return false;
@@ -358,14 +323,10 @@ public class BridgeFallsPlugin extends JavaPlugin {
             return false;
         }
 
-        // Bloc explicitement listé comme "no-rest-blocks-horizontal" ne doit pas
-        // être utilisé comme support horizontal.
         if (noRestBlocksHorizontal.contains(material)) {
             return false;
         }
 
-        // Un bloc toujours stable mais non marqué comme no-rest-blocks-horizontal
-        // peut servir de support horizontal (comportement actuel conservé).
         return true;
     }
 
@@ -403,14 +364,12 @@ public class BridgeFallsPlugin extends JavaPlugin {
     private void loadInstabilityColors() {
         List<String> entries = getConfig().getStringList("instability-colors");
         if (entries == null || entries.isEmpty()) {
-            // Config absente : garder les valeurs par défaut
             instabilityColorStart = Color.YELLOW;
             instabilityColorMiddle = Color.ORANGE;
             instabilityColorEnd = Color.RED;
             return;
         }
 
-        // On lit au plus 3 couleurs dans l'ordre
         if (entries.size() >= 1) {
             Color c = parseColor(entries.get(0));
             if (c != null) {
@@ -441,7 +400,6 @@ public class BridgeFallsPlugin extends JavaPlugin {
             return null;
         }
 
-        // Noms simples
         switch (v) {
             case "red":
                 return Color.RED;
@@ -482,7 +440,6 @@ public class BridgeFallsPlugin extends JavaPlugin {
                 return Color.TEAL;
         }
 
-        // Hex RGB du type "#RRGGBB" ou "RRGGBB"
         String hex = v.startsWith("#") ? v.substring(1) : v;
         if (hex.length() == 6) {
             try {
@@ -516,7 +473,22 @@ public class BridgeFallsPlugin extends JavaPlugin {
             }
         }
 
-        return raw;
+        String colored = LegacyComponentSerializer.legacyAmpersand().serialize(
+                LegacyComponentSerializer.legacyAmpersand().deserialize(raw));
+        return applyColorTags(colored);
+    }
+
+    private String applyColorTags(String input) {
+        if (input == null) {
+            return null;
+        }
+
+        String result = input;
+        result = result.replace("[GREEN]", "§a");
+        result = result.replace("[RED]", "§c");
+        result = result.replace("[YELLOW]", "§e");
+        result = result.replace("[GRAY]", "§7");
+        return result;
     }
 
     private void loadNoRestBlocks() {
@@ -573,7 +545,6 @@ public class BridgeFallsPlugin extends JavaPlugin {
             alwaysStableBlocks.add(material);
         }
 
-        // Blocs qui peuvent flotter et donc reposer sur l'eau
         List<String> floatingEntries = getConfig().getStringList("floating-support-blocks");
         for (String name : floatingEntries) {
             if (name == null) {
@@ -607,14 +578,11 @@ public class BridgeFallsPlugin extends JavaPlugin {
         }
         topSupportRadius = topRadius;
 
-        // Autoriser ou non la pose de blocs instables
         allowPlacingUnstableBlocks = getConfig().getBoolean("allow-placing-unstable-blocks", false);
 
-        // Comportement des FallingBlock créés par le plugin
         fallingBlockDropItem = getConfig().getBoolean("falling-block-drop-item", false);
         fallingBlockHurtEntities = getConfig().getBoolean("falling-block-hurt-entities", true);
 
-        // Activation / désactivation temporaire de la chute des blocs instables
         fallingEnabled = getConfig().getBoolean("falling-enabled", true);
     }
 
@@ -622,12 +590,6 @@ public class BridgeFallsPlugin extends JavaPlugin {
         return fallingEnabled;
     }
 
-    /**
-     * Active ou désactive la chute des blocs instables.
-     *
-     * Si on réactive alors que c'était désactivé, tous les timers
-     * des blocs instables sont remis à zéro et repartent depuis maintenant.
-     */
     public void setFallingEnabled(boolean enabled) {
         boolean wasEnabled = this.fallingEnabled;
         this.fallingEnabled = enabled;
@@ -702,7 +664,6 @@ public class BridgeFallsPlugin extends JavaPlugin {
     private void saveUnstableBlocks() {
         File file = new File(getDataFolder(), "unstable-blocks.yml");
         if (!file.getParentFile().exists()) {
-            // noinspection ResultOfMethodCallIgnored
             file.getParentFile().mkdirs();
         }
 
@@ -733,7 +694,7 @@ public class BridgeFallsPlugin extends JavaPlugin {
         try {
             config.save(file);
         } catch (IOException e) {
-            getLogger().warning("Impossible de sauvegarder les blocs instables: " + e.getMessage());
+            getLogger().warning("Unable to save unstable blocks: " + e.getMessage());
         }
     }
 }

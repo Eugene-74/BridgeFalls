@@ -32,7 +32,6 @@ public class BridgeFallsListener implements Listener {
         Block brokenBlock = event.getBlock();
         Player player = event.getPlayer();
 
-        // On attend 1 tick pour que le monde soit mis à jour (bloc vraiment cassé)
         BridgeFallsPlugin.getInstance().getServer().getScheduler().runTaskLater(BridgeFallsPlugin.getInstance(), () -> {
             int radius = BridgeFallsPlugin.getInstance().getSupportRadius();
             checkAndHighlightUnsupportedBlocksAround(brokenBlock, radius, player);
@@ -51,7 +50,6 @@ public class BridgeFallsListener implements Listener {
         Block block = event.getBlock();
         Material placedType = block.getType();
 
-        // Certains blocs n'ont jamais besoin de structure
         if (plugin.isAlwaysStable(placedType)) {
             player.sendMessage(plugin.getMessage("block.always-stable-placed"));
             return;
@@ -59,7 +57,6 @@ public class BridgeFallsListener implements Listener {
 
         int radius = plugin.getSupportRadius();
 
-        // On vérifie le support vertical du bloc lui-même (pas du bloc en dessous)
         boolean hasDirectSupport = hasDirectVerticalSupport(block);
 
         boolean hasIndirectSupport = !hasDirectSupport && hasSupportWithinDistance(block, radius);
@@ -71,28 +68,9 @@ public class BridgeFallsListener implements Listener {
             hasTopSupport = hasTopSupportWithinDistance(block, topRadius);
         }
 
-        // Messages d'information détaillés uniquement si debug=true dans la config
-        if (plugin.getConfig().getBoolean("debug", false)) {
-            Map<String, String> infoPlaceholders = new HashMap<>();
-            infoPlaceholders.put("block", placedType.name().toLowerCase());
-            infoPlaceholders.put("supportRadius", String.valueOf(radius));
-            infoPlaceholders.put("topSupportRadius", String.valueOf(topRadius));
-            infoPlaceholders.put("direct", hasDirectSupport ? "oui" : "non");
-            infoPlaceholders.put("horizontal", hasIndirectSupport ? "oui" : "non");
-            infoPlaceholders.put("top", hasTopSupport ? "oui" : "non");
+        boolean hasAnchor = hasAnchor(block, radius);
 
-            player.sendMessage(plugin.getMessage("block.place.info.block", infoPlaceholders));
-            player.sendMessage(plugin.getMessage("block.place.info.direct", infoPlaceholders));
-            player.sendMessage(plugin.getMessage("block.place.info.horizontal", infoPlaceholders));
-            if (topRadius > 0) {
-                player.sendMessage(plugin.getMessage("block.place.info.top", infoPlaceholders));
-            }
-        }
-
-        // On refuse si le bloc n'a aucun support (vertical / horizontal / haut).
-        if (!hasDirectSupport && !hasIndirectSupport && !hasTopSupport) {
-            // Selon la config, soit on interdit la pose de blocs instables,
-            // soit on les autorise mais ils deviennent instables.
+        if (!hasDirectSupport && !hasIndirectSupport && !hasTopSupport || !hasAnchor) {
             playUnstableDenySound(player);
 
             if (plugin.isAllowPlacingUnstableBlocks()) {
@@ -104,6 +82,10 @@ public class BridgeFallsListener implements Listener {
                 ph.put("minutes", String.valueOf(minutes));
 
                 player.sendMessage(plugin.getMessage("block.place.marked-unstable", ph));
+
+                BridgeFallsPlugin.log("Player : " + player.getName() + " placed block " + block.getType() + " at "
+                        + block.getLocation() + " witch is unstable");
+
                 return;
             }
 
@@ -124,10 +106,19 @@ public class BridgeFallsListener implements Listener {
 
             if (below == Material.AIR) {
                 reasonCore = plugin.getMessage("block.place.error.no-below");
+                BridgeFallsPlugin
+                        .log("Player : " + player.getName() + " tried to place block " + block.getType() + " at "
+                                + block.getLocation() + " but there is no block below");
             } else if (plugin.isNoRestBlockVertical(below)) {
                 reasonCore = plugin.getMessage("block.place.error.below-no-support", belowPlaceholder);
+                BridgeFallsPlugin
+                        .log("Player : " + player.getName() + " tried to place block " + block.getType() + " at "
+                                + block.getLocation() + " but the block below is not a valid support");
             } else {
                 reasonCore = plugin.getMessage("block.place.error.below-invalid", belowPlaceholder);
+                BridgeFallsPlugin
+                        .log("Player : " + player.getName() + " tried to place block " + block.getType() + " at "
+                                + block.getLocation() + " but the block below is not providing support");
             }
 
             boolean hasHorizontalStructure = hasHorizontalStructureWithinDistance(block, radius);
@@ -136,8 +127,14 @@ public class BridgeFallsListener implements Listener {
                 Map<String, String> radiusPlaceholder = new HashMap<>();
                 radiusPlaceholder.put("radius", String.valueOf(radius));
                 reasonHorizontal = plugin.getMessage("block.place.error.no-horizontal", radiusPlaceholder);
+                BridgeFallsPlugin
+                        .log("Player : " + player.getName() + " tried to place block " + block.getType() + " at "
+                                + block.getLocation() + " but there is no horizontal support within radius");
             } else {
                 reasonHorizontal = plugin.getMessage("block.place.error.weak-horizontal");
+                BridgeFallsPlugin
+                        .log("Player : " + player.getName() + " tried to place block " + block.getType() + " at "
+                                + block.getLocation() + " but there is only weak horizontal support within radius");
             }
 
             player.sendMessage("§c" + reasonPrefix + reasonCore + reasonHorizontal);
@@ -147,7 +144,6 @@ public class BridgeFallsListener implements Listener {
     public static boolean isBlockSupported(Block block) {
         BridgeFallsPlugin plugin = BridgeFallsPlugin.getInstance();
 
-        // Un bloc marqué comme toujours stable est forcément supporté
         if (plugin.isAlwaysStable(block.getType())) {
             return true;
         }
@@ -162,19 +158,14 @@ public class BridgeFallsListener implements Listener {
     private static boolean isBlockSupportedByBelowOrHorizontal(Block block) {
         BridgeFallsPlugin plugin = BridgeFallsPlugin.getInstance();
 
-        // Un bloc d'air ne peut jamais être considéré comme supporté
-        // pour servir de "support par le haut".
         if (block.getType() == Material.AIR) {
             return false;
         }
 
-        // Support direct par en dessous (en tenant compte des blocs flottants
-        // et des "vrais" piliers qui vont jusqu'au sol)
         if (hasDirectVerticalSupport(block)) {
             return true;
         }
 
-        // Sinon, support indirect via un réseau horizontal
         int radius = plugin.getSupportRadius();
         return hasSupportWithinDistance(block, radius);
     }
@@ -240,7 +231,6 @@ public class BridgeFallsListener implements Listener {
         for (int dy = 1; dy <= maxUp; dy++) {
             Block above = startBlock.getRelative(0, dy, 0);
 
-            // Stop if we encounter air or no-rest blocks
             if (above.getType() == Material.AIR ||
                     BridgeFallsPlugin.getInstance().isNoRestBlockVertical(above.getType())) {
                 break;
@@ -283,9 +273,6 @@ public class BridgeFallsListener implements Listener {
                 continue;
             }
 
-            // On ne valide un support vertical qu'après au moins
-            // 1 pas horizontal pour éviter de compter le bloc
-            // d'origine comme seul support.
             if (distance > 0) {
                 if (hasDirectVerticalSupport(current)) {
                     return true;
@@ -382,10 +369,6 @@ public class BridgeFallsListener implements Listener {
             return true;
         }
 
-        // Règle simple demandée :
-        // si un bloc a un bloc en dessous (non-air et
-        // qui n'est pas dans no-rest-blocks-vertical),
-        // alors il est verticalement stable.
         if (belowType == Material.AIR) {
             return false;
         }
@@ -395,6 +378,55 @@ public class BridgeFallsListener implements Listener {
         }
 
         return true;
+    }
+
+    private static boolean hasAnchor(Block block, int radius) {
+        BridgeFallsPlugin plugin = BridgeFallsPlugin.getInstance();
+
+        BlockFace[] faces = new BlockFace[] {
+                BlockFace.NORTH,
+                BlockFace.SOUTH,
+                BlockFace.EAST,
+                BlockFace.WEST,
+                BlockFace.UP,
+                BlockFace.DOWN
+        };
+
+        Queue<Block> toVisit = new LinkedList<>();
+        Map<Block, Integer> distances = new HashMap<>();
+        Set<Block> visited = new HashSet<>();
+
+        toVisit.add(block);
+        distances.put(block, 0);
+        visited.add(block);
+
+        while (!toVisit.isEmpty()) {
+            Block current = toVisit.poll();
+            int distance = distances.get(current);
+
+            // Si on a dépassé le rayon, on a trouvé une sortie
+            if (distance > radius) {
+                return true;
+            }
+
+            for (BlockFace face : faces) {
+                Block next = current.getRelative(face);
+
+                if (visited.contains(next)) {
+                    continue;
+                }
+
+                visited.add(next);
+
+                if (next.getType() != Material.AIR &&
+                        plugin.isHorizontalSupportProvider(next.getType())) {
+                    toVisit.add(next);
+                    distances.put(next, distance + 1);
+                }
+            }
+        }
+
+        return false;
     }
 
     private static void checkAndHighlightUnsupportedBlocksAround(Block origin, int radius, Player player) {
@@ -481,6 +513,8 @@ public class BridgeFallsListener implements Listener {
     }
 
     public static void startFalling(Block block) {
+        BridgeFallsPlugin.log("Block at " + block.getLocation() + " is starting to fall");
+
         World world = block.getWorld();
 
         if (block.getType() == Material.AIR) {
@@ -501,12 +535,10 @@ public class BridgeFallsListener implements Listener {
 
         int radius = BridgeFallsPlugin.getInstance().getSupportRadius();
 
-        // pas de joueur associé ici, on ne spamme pas de message
         checkAndHighlightUnsupportedBlocksAround(block, radius, null);
     }
 
     private static void playUnstableDenySound(Player player) {
-        // Petit son "refus" quand un bloc devient instable
         player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 1.0F, 0.8F);
     }
 
@@ -514,7 +546,6 @@ public class BridgeFallsListener implements Listener {
         if (loc == null || loc.getWorld() == null) {
             return;
         }
-        // Petit son "refus" quand un bloc devient instable
         loc.getWorld().playSound(loc, Sound.BLOCK_NOTE_BLOCK_BASS, 0.7F, 0.8F);
     }
 
@@ -522,7 +553,6 @@ public class BridgeFallsListener implements Listener {
         if (loc == null || loc.getWorld() == null) {
             return;
         }
-        // Son d'alerte discret autour d'un bloc très instable (phase rouge)
         loc.getWorld().playSound(loc, Sound.BLOCK_NOTE_BLOCK_BELL, 0.5F, 1.8F);
     }
 }
