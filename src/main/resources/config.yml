@@ -1,0 +1,49 @@
+debug: false
+
+no-rest-blocks-vertical:
+  - lava
+  - water
+  - fire
+  - powder_snow
+  - scaffolding
+
+no-rest-blocks-horizontal:
+  - lava
+  - water
+  - fire
+  - powder_snow
+  - scaffolding
+  - soul_sand
+  - sand
+  - acacia_leaves
+  - birch_leaves
+  - dark_oak_leaves
+  - jungle_leaves
+  - oak_leaves
+  - spruce_leaves
+  - mangrove_leaves
+  - cherry_leaves
+
+always-stable-blocks:
+  - air
+  - bedrock
+  - water
+  - lava
+  - acacia_leaves
+  - birch_leaves
+  - dark_oak_leaves
+  - jungle_leaves
+  - oak_leaves
+  - spruce_leaves
+  - mangrove_leaves
+  - cherry_leaves
+
+fall-delay-minutes: 0.1
+
+# Rayon de recherche des blocs de support / blocs instables (en blocs)
+support-radius: 5
+
+# Rayon vertical vers le HAUT dans lequel un bloc
+# 0 = désactivé (comportement actuel)
+top-support-radius: 2
+

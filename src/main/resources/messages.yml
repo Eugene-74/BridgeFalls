@@ -1,0 +1,22 @@
+messages:
+  block.always-stable-placed: "§aBloc toujours stable placé sans vérification de structure."
+  block.height-ok: "§aHauteur du bloc: {height}"
+  block.place.error.header: "Impossible de placer {block} en {x}, {y}, {z} : "
+  block.place.error.no-below: "aucun bloc en dessous (vide)."
+  block.place.error.below-no-support: "le bloc en dessous ({below}) ne peut pas servir de support vertical."
+  block.place.error.below-invalid: "le bloc en dessous ({below}) n'offre pas un support valide."
+  block.place.error.no-horizontal: " Aucun bloc structurant n'est connecté à moins de {radius} blocs horizontalement pour soutenir ce bloc."
+  block.place.error.weak-horizontal: " Les blocs connectés horizontalement autour ne sont pas eux-mêmes correctement supportés en dessous."
+  break.made-unstable: "§cTu as rendu {count} bloc{plural} instable{plural}."
+
+  command.reload: "§aConfiguration rechargée."
+  command.enable: "§aBridgeFalls est maintenant activé."
+  command.disable: "§cBridgeFalls est maintenant désactivé."
+
+  command.list-nonstruct.vertical: "§eBlocs NON structurants verticalement (§fno-rest-blocks-vertical§e): §f{list}"
+  command.list-nonstruct.horizontal: "§eBlocs NON structurants horizontalement (§fno-rest-blocks-horizontal§e): §f{list}"
+
+  command.list-struct.vertical-info: "§aBlocs structurants verticalement : §fTout bloc SOLIDE qui n'est pas dans no-rest-blocks-vertical et qui n'est pas de l'air."
+  command.list-struct.horizontal-info: "§aBlocs structurants horizontalement : §fTout bloc SOLIDE qui n'est pas dans no-rest-blocks-horizontal et qui n'est pas de l'air."
+  command.list-struct.nonstruct-vertical: "§7Blocs explicitement non structurants verticaux: §f{list}"
+  command.list-struct.nonstruct-horizontal: "§7Blocs explicitement non structurants horizontaux: §f{list}"
