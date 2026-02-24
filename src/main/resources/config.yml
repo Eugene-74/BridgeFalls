@@ -33,6 +33,7 @@ allow-placing-unstable-blocks: true # Allow players to place blocks that are not
 
 # Behavior of falling blocks (FallingBlock) created by the plugin
 falling-block: false
+falling-block-disable-during-siege: false # If true, falling blocks are temporarily disabled in Towny/SiegeWar active war zones.
 falling-block-drop-item: true
 falling-block-hurt-entities: true
 

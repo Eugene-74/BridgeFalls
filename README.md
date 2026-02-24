@@ -11,6 +11,7 @@ It is designed for **Paper/Folia-style servers** and includes configurable suppo
 - **Anchor validation** with 3D connectivity (including diagonals)
 - **Leaf support restriction**: leaves support only blocks with `LOG` in their material name
 - **Unstable block lifecycle**: mark, warn, persist, and optionally convert to `FallingBlock`
+- **Siege-aware falling mode** (optional): temporarily disables `falling-block` inside active Towny/SiegeWar war zones
 - **Visual feedback** with configurable particle colors and warning sounds
 - **Large material rule lists** for:
   - non-supporting vertical blocks
@@ -75,6 +76,7 @@ Config commands:
   - `/bf config debug [true|false]`
   - `/bf config allow-placing-unstable-blocks [true|false]`
   - `/bf config falling-block [enable|disable]`
+  - `/bf config falling-block disable-during-siege [true|false]`
   - `/bf config falling-block drop-item [true|false]`
   - `/bf config falling-block hurt-entities [true|false]`
 - Lists (`list`, `add`, `remove`)
@@ -125,6 +127,7 @@ Important keys in `config.yml`:
 - `time-to-check-anchor` (interval in ticks between `hasAnchor` checks for unstable blocks)
 - `allow-placing-unstable-blocks`
 - `falling-block`
+- `falling-block-disable-during-siege` (if `true`, `falling-block` is temporarily treated as `false` in active Towny/SiegeWar war zones)
 - `falling-block-drop-item`
 - `falling-block-hurt-entities`
 - `disabled-gamemodes`
@@ -134,6 +137,8 @@ Important keys in `config.yml`:
 Messages are customizable in `messages.yml` with placeholders (for example `{block}`, `{radius}`, `{count}`, `{minutes}`).
 
 Tip: keep `time-to-check-anchor` greater than or equal to `time-to-check` when you want less frequent anchor checks and lower CPU usage.
+
+If you enable `falling-block-disable-during-siege`, BridgeFalls will auto-check Towny state by location and keep unstable blocks in warning mode (no FallingBlock conversion) while the related town/nation is in active war.
 
 ## Folia behavior
 

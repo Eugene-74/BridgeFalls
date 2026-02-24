@@ -54,6 +54,8 @@ public class BridgeFallsCommand extends BaseCommand {
         sender.sendMessage(
                 "§7/bf config allow-placing-unstable-blocks §f[true|false] §f- Allow placing unstable blocks");
         sender.sendMessage("§7/bf config falling-block §f[enable|disable] §f- Toggle falling physics");
+        sender.sendMessage(
+                "§7/bf config falling-block disable-during-siege §f[true|false] §f- Disable falling blocks during Towny siege");
         sender.sendMessage("§7/bf config falling-block drop-item §f[true|false] §f- Falling blocks drop items");
         sender.sendMessage(
                 "§7/bf config falling-block hurt-entities §f[true|false] §f- Falling blocks damage entities");
@@ -151,6 +153,12 @@ public class BridgeFallsCommand extends BaseCommand {
     @CommandCompletion("enable|disable")
     public void onConfigFallingEnabled(CommandSender sender, @Optional String value) {
         handleBooleanConfig(sender, "falling-block", "falling-block", value);
+    }
+
+    @Subcommand("config falling-block disable-during-siege")
+    @CommandCompletion("true|false")
+    public void onConfigFallingDisableDuringSiege(CommandSender sender, @Optional String value) {
+        handleBooleanConfig(sender, "falling-block-disable-during-siege", "falling-block-disable-during-siege", value);
     }
 
     @Subcommand("config time-to-check")

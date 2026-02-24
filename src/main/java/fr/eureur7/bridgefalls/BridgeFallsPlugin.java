@@ -18,6 +18,7 @@ import org.bukkit.inventory.InventoryHolder;
 
 import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -26,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.bukkit.GameMode;
+import org.bukkit.plugin.Plugin;
 
 public class BridgeFallsPlugin extends JavaPlugin {
     private boolean bridgeFallsEnabled = true;
@@ -51,6 +53,7 @@ public class BridgeFallsPlugin extends JavaPlugin {
     private boolean allowPlacingUnstableBlocks = false;
     private boolean fallingBlockDropItem = false;
     private boolean fallingBlockHurtEntities = true;
+    private boolean fallingBlockDisableDuringSiege = false;
     private FileConfiguration messagesConfig;
 
     private Color instabilityColorStart = Color.YELLOW;
@@ -60,6 +63,16 @@ public class BridgeFallsPlugin extends JavaPlugin {
     public static Color defaultInstabilityColor = Color.BLUE;
 
     private ScheduledTask unstableCheckTask;
+
+    private boolean townyReflectionInitialized = false;
+    private boolean townyReflectionAvailable = false;
+    private Method townyApiGetInstanceMethod;
+    private Method townyApiGetTownBlockMethod;
+    private Method townBlockGetTownOrNullMethod;
+    private Method townHasActiveWarMethod;
+    private Method townHasNationMethod;
+    private Method townGetNationOrNullMethod;
+    private Method nationHasActiveWarMethod;
 
     public static BridgeFallsPlugin getInstance() {
         return JavaPlugin.getPlugin(BridgeFallsPlugin.class);
@@ -729,12 +742,29 @@ public class BridgeFallsPlugin extends JavaPlugin {
 
         fallingBlockDropItem = getConfig().getBoolean("falling-block-drop-item", false);
         fallingBlockHurtEntities = getConfig().getBoolean("falling-block-hurt-entities", true);
+        fallingBlockDisableDuringSiege = getConfig().getBoolean("falling-block-disable-during-siege", false);
 
         fallingBlockEnabled = getConfig().getBoolean("falling-block", true);
     }
 
+    public boolean isFallingBlockDisableDuringSiegeEnabled() {
+        return this.fallingBlockDisableDuringSiege;
+    }
+
     public boolean isFallingBlockEnabled() {
-        return this.fallingBlockEnabled;
+        return isFallingBlockEnabledAt(null);
+    }
+
+    public boolean isFallingBlockEnabledAt(Location location) {
+        if (!this.fallingBlockEnabled) {
+            return false;
+        }
+
+        if (!this.fallingBlockDisableDuringSiege || location == null) {
+            return true;
+        }
+
+        return !isSiegeActiveAt(location);
     }
 
     public void setFallingBlockEnabled(boolean enabled) {
@@ -744,6 +774,86 @@ public class BridgeFallsPlugin extends JavaPlugin {
         if (enabled && !wasEnabled) {
             resetTimersForAllUnstableBlocks();
         }
+    }
+
+    private boolean isSiegeActiveAt(Location location) {
+        if (location == null || location.getWorld() == null) {
+            return false;
+        }
+
+        Plugin townyPlugin = getServer().getPluginManager().getPlugin("Towny");
+        if (townyPlugin == null || !townyPlugin.isEnabled()) {
+            return false;
+        }
+
+        if (!initTownyReflection()) {
+            return false;
+        }
+
+        try {
+            Object townyApi = townyApiGetInstanceMethod.invoke(null);
+            if (townyApi == null) {
+                return false;
+            }
+
+            Object townBlock = townyApiGetTownBlockMethod.invoke(townyApi, location);
+            if (townBlock == null) {
+                return false;
+            }
+
+            Object town = townBlockGetTownOrNullMethod.invoke(townBlock);
+            if (town == null) {
+                return false;
+            }
+
+            if (Boolean.TRUE.equals(townHasActiveWarMethod.invoke(town))) {
+                return true;
+            }
+
+            if (!Boolean.TRUE.equals(townHasNationMethod.invoke(town))) {
+                return false;
+            }
+
+            Object nation = townGetNationOrNullMethod.invoke(town);
+            return nation != null && Boolean.TRUE.equals(nationHasActiveWarMethod.invoke(nation));
+        } catch (ReflectiveOperationException exception) {
+            if (getConfig().getBoolean("debug", false)) {
+                getLogger().warning("Towny siege lookup failed: " + exception.getMessage());
+            }
+            return false;
+        }
+    }
+
+    private boolean initTownyReflection() {
+        if (townyReflectionInitialized) {
+            return townyReflectionAvailable;
+        }
+
+        townyReflectionInitialized = true;
+
+        try {
+            Class<?> townyApiClass = Class.forName("com.palmergames.bukkit.towny.TownyAPI");
+            Class<?> townBlockClass = Class.forName("com.palmergames.bukkit.towny.object.TownBlock");
+            Class<?> townClass = Class.forName("com.palmergames.bukkit.towny.object.Town");
+            Class<?> nationClass = Class.forName("com.palmergames.bukkit.towny.object.Nation");
+
+            townyApiGetInstanceMethod = townyApiClass.getMethod("getInstance");
+            townyApiGetTownBlockMethod = townyApiClass.getMethod("getTownBlock", Location.class);
+            townBlockGetTownOrNullMethod = townBlockClass.getMethod("getTownOrNull");
+            townHasActiveWarMethod = townClass.getMethod("hasActiveWar");
+            townHasNationMethod = townClass.getMethod("hasNation");
+            townGetNationOrNullMethod = townClass.getMethod("getNationOrNull");
+            nationHasActiveWarMethod = nationClass.getMethod("hasActiveWar");
+
+            townyReflectionAvailable = true;
+        } catch (ReflectiveOperationException exception) {
+            townyReflectionAvailable = false;
+            if (getConfig().getBoolean("debug", false)) {
+                getLogger().warning("Towny API not available for siege checks: " + exception.getMessage());
+            }
+        }
+
+        return townyReflectionAvailable;
     }
 
     private void loadUnstableBlocks() {
@@ -928,14 +1038,16 @@ public class BridgeFallsPlugin extends JavaPlugin {
             return;
         }
 
-        if (isFallingBlockEnabled() && fallDelayMillis >= 0 && now - createdAt >= fallDelayMillis) {
+        boolean fallingBlockEnabledAtLocation = isFallingBlockEnabledAt(location);
+
+        if (fallingBlockEnabledAtLocation && fallDelayMillis >= 0 && now - createdAt >= fallDelayMillis) {
             if (removeUnstableBlockAndSave(location, "Block at " + block.getLocation() + " is now falling.")) {
                 BridgeFallsListener.startFalling(block);
             }
             return;
         }
 
-        if (!isFallingBlockEnabled()) {
+        if (!fallingBlockEnabledAtLocation) {
             BridgeFallsListener.showColoredOutline(block, defaultInstabilityColor);
             return;
         }
