@@ -9,6 +9,7 @@ It is designed for **Paper/Folia-style servers** and includes configurable suppo
 
 - **Support simulation** for placed/broken blocks (vertical, horizontal, top support, and anchor checks)
 - **Anchor validation** with 3D connectivity (including diagonals)
+- **Leaf support restriction**: leaves support only blocks with `LOG` in their material name
 - **Unstable block lifecycle**: mark, warn, persist, and optionally convert to `FallingBlock`
 - **Visual feedback** with configurable particle colors and warning sounds
 - **Large material rule lists** for:
@@ -65,9 +66,12 @@ Config commands:
   - `/bf config support-radius <value>`
   - `/bf config top-support-radius <value>`
   - `/bf config anchor-support-radius <value>`
+  - `/bf config anchor-support-radius-check-when-breaking <value>`
+  - `/bf config anchor-max-time-ms <value>`
 - Behavior
   - `/bf config fall-delay-minutes <minutes>`
   - `/bf config time-to-check <ticks>`
+  - `/bf config time-to-check-anchor <ticks>`
   - `/bf config debug [true|false]`
   - `/bf config allow-placing-unstable-blocks [true|false]`
   - `/bf config falling-block [enable|disable]`
@@ -89,9 +93,11 @@ BridgeFalls evaluates support from several angles:
 1. **Direct vertical support**
     - checks the 3x3 area below a block
     - excludes air and materials listed in `no-rest-blocks-vertical`
+  - leaves (`*_LEAVES`) are valid support only for blocks with `LOG` in their material name
 2. **Horizontal support**
     - BFS-style search up to `support-radius`
     - only traverses blocks allowed as horizontal support providers
+  - leaves (`*_LEAVES`) are traversable/valid only for blocks with `LOG` in their material name
 3. **Top support**
     - optional upward check up to `top-support-radius`
 4. **Anchor check**
@@ -112,8 +118,11 @@ Important keys in `config.yml`:
 - `support-radius`
 - `top-support-radius`
 - `anchor-support-radius`
+- `anchor-support-radius-check-when-breaking`
+- `anchor-max-time-ms` (maximum `hasAnchor` evaluation time before assuming anchored)
 - `fall-delay-minutes` (`0` means immediate fall)
 - `time-to-check` (task interval in ticks)
+- `time-to-check-anchor` (interval in ticks between `hasAnchor` checks for unstable blocks)
 - `allow-placing-unstable-blocks`
 - `falling-block`
 - `falling-block-drop-item`
@@ -123,6 +132,8 @@ Important keys in `config.yml`:
 - `instable-color` (default outline when falling mode is disabled)
 
 Messages are customizable in `messages.yml` with placeholders (for example `{block}`, `{radius}`, `{count}`, `{minutes}`).
+
+Tip: keep `time-to-check-anchor` greater than or equal to `time-to-check` when you want less frequent anchor checks and lower CPU usage.
 
 ## Folia behavior
 

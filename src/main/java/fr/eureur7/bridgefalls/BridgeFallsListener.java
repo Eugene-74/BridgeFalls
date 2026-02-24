@@ -202,6 +202,9 @@ public class BridgeFallsListener implements Listener {
     }
 
     private static boolean hasSupportWithinDistance(Block startBlock, int maxDistance) {
+        BridgeFallsPlugin plugin = BridgeFallsPlugin.getInstance();
+        Material sourceBlockType = startBlock.getType();
+
         BlockFace[] horizontalFaces = new BlockFace[] {
                 BlockFace.NORTH,
                 BlockFace.SOUTH,
@@ -242,7 +245,7 @@ public class BridgeFallsListener implements Listener {
 
                 visited.add(next);
 
-                if (!BridgeFallsPlugin.getInstance().isHorizontalSupportProvider(next.getType())) {
+                if (!isValidHorizontalSupport(next.getType(), sourceBlockType, plugin)) {
                     continue;
                 }
 
@@ -284,6 +287,9 @@ public class BridgeFallsListener implements Listener {
         if (maxDistance <= 0) {
             return false;
         }
+
+        BridgeFallsPlugin plugin = BridgeFallsPlugin.getInstance();
+        Material sourceBlockType = origin.getType();
 
         BlockFace[] horizontalFaces = new BlockFace[] {
                 BlockFace.NORTH,
@@ -327,7 +333,7 @@ public class BridgeFallsListener implements Listener {
 
                 visited.add(next);
 
-                if (!BridgeFallsPlugin.getInstance().isHorizontalSupportProvider(next.getType())) {
+                if (!isValidHorizontalSupport(next.getType(), sourceBlockType, plugin)) {
                     continue;
                 }
 
@@ -340,6 +346,9 @@ public class BridgeFallsListener implements Listener {
     }
 
     private static boolean hasHorizontalStructureWithinDistance(Block startBlock, int maxDistance) {
+        BridgeFallsPlugin plugin = BridgeFallsPlugin.getInstance();
+        Material sourceBlockType = startBlock.getType();
+
         BlockFace[] horizontalFaces = new BlockFace[] {
                 BlockFace.NORTH,
                 BlockFace.SOUTH,
@@ -363,7 +372,7 @@ public class BridgeFallsListener implements Listener {
                 continue;
             }
 
-            if (distance > 0 && BridgeFallsPlugin.getInstance().isHorizontalSupportProvider(current.getType())) {
+            if (distance > 0 && isValidHorizontalSupport(current.getType(), sourceBlockType, plugin)) {
                 return true;
             }
 
@@ -380,7 +389,7 @@ public class BridgeFallsListener implements Listener {
 
                 visited.add(next);
 
-                if (!BridgeFallsPlugin.getInstance().isHorizontalSupportProvider(next.getType())) {
+                if (!isValidHorizontalSupport(next.getType(), sourceBlockType, plugin)) {
                     continue;
                 }
 
@@ -396,9 +405,14 @@ public class BridgeFallsListener implements Listener {
         BridgeFallsPlugin plugin = BridgeFallsPlugin.getInstance();
 
         Material blockType = block.getType();
+        boolean blockCanUseLeafSupport = canUseLeafSupport(blockType);
 
         Block below = block.getRelative(BlockFace.DOWN);
         Material belowType = below.getType();
+
+        if (isLeafBlock(belowType)) {
+            return true;
+        }
 
         if (plugin.isFloatingSupport(blockType) && belowType == Material.WATER) {
             return true;
@@ -408,13 +422,41 @@ public class BridgeFallsListener implements Listener {
         for (int dx = -1; dx <= 1; dx++) {
             for (int dz = -1; dz <= 1; dz++) {
                 Block checkBlock = block.getRelative(dx, -1, dz);
-                if (checkBlock.getType() != Material.AIR && !plugin.isNoRestBlockVertical(checkBlock.getType())) {
-                    return true;
+                Material supportType = checkBlock.getType();
+                if (supportType == Material.AIR || plugin.isNoRestBlockVertical(supportType)) {
+                    continue;
                 }
+
+                if (isLeafBlock(supportType) && !blockCanUseLeafSupport) {
+                    continue;
+                }
+
+                return true;
             }
         }
 
         return false;
+    }
+
+    private static boolean canUseLeafSupport(Material material) {
+        return material != null && material.name().contains("LOG");
+    }
+
+    private static boolean isLeafBlock(Material material) {
+        return material != null && material.name().endsWith("_LEAVES");
+    }
+
+    private static boolean isValidHorizontalSupport(Material supportType, Material sourceBlockType,
+            BridgeFallsPlugin plugin) {
+        if (!plugin.isHorizontalSupportProvider(supportType)) {
+            return false;
+        }
+
+        if (isLeafBlock(supportType) && !canUseLeafSupport(sourceBlockType)) {
+            return false;
+        }
+
+        return true;
     }
 
     private static long packBlockPos(int x, int y, int z) {
