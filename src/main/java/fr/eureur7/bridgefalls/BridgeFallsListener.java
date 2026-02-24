@@ -417,44 +417,80 @@ public class BridgeFallsListener implements Listener {
         return false;
     }
 
-    private record AnchorNode(int x, int y, int z) {
+    private static long packBlockPos(int x, int y, int z) {
+        return ((long) (x & 0x3FFFFFF) << 38)
+                | ((long) (z & 0x3FFFFFF) << 12)
+                | (long) (y & 0xFFF);
+    }
+
+    private static int unpackBlockPosX(long packed) {
+        return (int) (packed >> 38);
+    }
+
+    private static int unpackBlockPosY(long packed) {
+        return (int) (packed << 52 >> 52);
+    }
+
+    private static int unpackBlockPosZ(long packed) {
+        return (int) (packed << 26 >> 38);
+    }
+
+    private static boolean finishHasAnchor(boolean result, long startNanos, Block block, int radius) {
+        long elapsedNanos = System.nanoTime() - startNanos;
+        double elapsedMs = elapsedNanos / 1_000_000.0D;
+
+        String blockLocation = (block == null || block.getWorld() == null)
+                ? "null"
+                : block.getWorld().getName() + ":" + block.getX() + "," + block.getY() + "," + block.getZ();
+
+        BridgeFallsPlugin.log(String.format(
+                "hasAnchor result=%s radius=%d timeMs=%.3f block=%s",
+                result,
+                radius,
+                elapsedMs,
+                blockLocation));
+
+        return result;
     }
 
     static boolean hasAnchor(Block block, int radius) {
+        long startNanos = System.nanoTime();
+
         if (block == null || block.getType() == Material.AIR) {
-            return false;
+            return finishHasAnchor(false, startNanos, block, radius);
         }
 
         if (radius <= 0) {
-            return true;
+            return finishHasAnchor(true, startNanos, block, radius);
         }
 
         int originX = block.getX();
         int originY = block.getY();
         int originZ = block.getZ();
         int radiusSquared = radius * radius;
+
         World world = block.getWorld();
         if (world == null) {
-            return false;
+            return finishHasAnchor(false, startNanos, block, radius);
         }
 
-        ArrayDeque<AnchorNode> toVisit = new ArrayDeque<>();
-        Set<AnchorNode> visited = new HashSet<>();
+        int minY = world.getMinHeight();
+        int maxY = world.getMaxHeight() - 1;
 
-        AnchorNode origin = new AnchorNode(originX, originY, originZ);
-        toVisit.add(origin);
+        ArrayDeque<Long> toVisit = new ArrayDeque<>();
+        Set<Long> visited = new HashSet<>();
+
+        long origin = packBlockPos(originX, originY, originZ);
         visited.add(origin);
 
-        while (!toVisit.isEmpty()) {
-            AnchorNode current = toVisit.poll();
+        long current = origin;
+        while (true) {
+            int currentX = unpackBlockPosX(current);
+            int currentY = unpackBlockPosY(current);
+            int currentZ = unpackBlockPosZ(current);
 
-            int dx = current.x() - originX;
-            int dy = current.y() - originY;
-            int dz = current.z() - originZ;
-
-            if ((dx * dx) + (dy * dy) + (dz * dz) > radiusSquared) {
-                return true;
-            }
+            long bestNext = Long.MIN_VALUE;
+            int bestNextDistanceSquared = -1;
 
             for (int offsetX = -1; offsetX <= 1; offsetX++) {
                 for (int offsetY = -1; offsetY <= 1; offsetY++) {
@@ -463,27 +499,96 @@ public class BridgeFallsListener implements Listener {
                             continue;
                         }
 
-                        int nextX = current.x() + offsetX;
-                        int nextY = current.y() + offsetY;
-                        int nextZ = current.z() + offsetZ;
+                        int nextX = currentX + offsetX;
+                        int nextY = currentY + offsetY;
+                        int nextZ = currentZ + offsetZ;
+
+                        if (nextY < minY || nextY > maxY) {
+                            continue;
+                        }
 
                         if (world.getBlockAt(nextX, nextY, nextZ).getType() == Material.AIR) {
                             continue;
                         }
 
-                        AnchorNode next = new AnchorNode(nextX, nextY, nextZ);
-                        if (visited.contains(next)) {
+                        int dx = nextX - originX;
+                        int dy = nextY - originY;
+                        int dz = nextZ - originZ;
+                        int distanceSquared = (dx * dx) + (dy * dy) + (dz * dz);
+                        if (distanceSquared > radiusSquared) {
+                            return finishHasAnchor(true, startNanos, block, radius);
+                        }
+
+                        long nextPacked = packBlockPos(nextX, nextY, nextZ);
+                        if (visited.contains(nextPacked)) {
                             continue;
                         }
 
-                        visited.add(next);
-                        toVisit.add(next);
+                        if (distanceSquared > bestNextDistanceSquared) {
+                            bestNextDistanceSquared = distanceSquared;
+                            bestNext = nextPacked;
+                        }
+                    }
+                }
+            }
+
+            if (bestNext == Long.MIN_VALUE) {
+                break;
+            }
+
+            visited.add(bestNext);
+            current = bestNext;
+        }
+
+        toVisit.addAll(visited);
+
+        while (!toVisit.isEmpty()) {
+            long currentNode = toVisit.poll();
+
+            int currentX = unpackBlockPosX(currentNode);
+            int currentY = unpackBlockPosY(currentNode);
+            int currentZ = unpackBlockPosZ(currentNode);
+
+            for (int offsetX = -1; offsetX <= 1; offsetX++) {
+                for (int offsetY = -1; offsetY <= 1; offsetY++) {
+                    for (int offsetZ = -1; offsetZ <= 1; offsetZ++) {
+                        if (offsetX == 0 && offsetY == 0 && offsetZ == 0) {
+                            continue;
+                        }
+
+                        int nextX = currentX + offsetX;
+                        int nextY = currentY + offsetY;
+                        int nextZ = currentZ + offsetZ;
+
+                        if (nextY < minY || nextY > maxY) {
+                            continue;
+                        }
+
+                        int dx = nextX - originX;
+                        int dy = nextY - originY;
+                        int dz = nextZ - originZ;
+                        int distanceSquared = (dx * dx) + (dy * dy) + (dz * dz);
+
+                        if (world.getBlockAt(nextX, nextY, nextZ).getType() == Material.AIR) {
+                            continue;
+                        }
+
+                        if (distanceSquared > radiusSquared) {
+                            return finishHasAnchor(true, startNanos, block, radius);
+                        }
+
+                        long nextPacked = packBlockPos(nextX, nextY, nextZ);
+                        if (!visited.add(nextPacked)) {
+                            continue;
+                        }
+
+                        toVisit.add(nextPacked);
                     }
                 }
             }
         }
 
-        return false;
+        return finishHasAnchor(false, startNanos, block, radius);
     }
 
     private static void checkAndHighlightUnsupportedBlocksAround(Block origin, int radius, Player player) {

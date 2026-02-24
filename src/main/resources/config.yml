@@ -1,18 +1,18 @@
-debug: false
+debug: true
 
 
 support-radius: 32 # radius for checking if a block is supported by other blocks (not air) in horizontal directions
 top-support-radius: 16 # radius for checking if a block is supported by other blocks (not air) in up direction
 
 anchor-support-radius-check-when-breaking: 2 # radius for checking if a block is supported by an anchor block (not air) avoid floating structures (2 is the minimum to keep a logical behavior)
-anchor-support-radius: 32 # distance for checking if a block is supported by an anchor block (not air) 
+anchor-support-radius: 64 # distance for checking if a block is supported by an anchor block (not air) 
 
 fall-delay-minutes: 15 # 0 to instant fall (minutes)
 time-to-check: 20 # delay between placing a block and checking its stability for the first time, also used as interval for repeated checks until it falls (ticks)
 
 # Gamemodes where BridgeFalls stability checks are disabled
 disabled-gamemodes:
-  - creative
+  # - creative
   - spectator
 
 # Instability particle colors (order: start, middle, end)
