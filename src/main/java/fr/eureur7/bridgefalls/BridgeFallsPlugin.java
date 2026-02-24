@@ -36,6 +36,7 @@ public class BridgeFallsPlugin extends JavaPlugin {
     private Set<Material> floatingSupportBlocks = new HashSet<>();
     private Set<GameMode> disabledGamemodes = new HashSet<>();
     private final Map<Location, Long> unstableBlocks = new HashMap<>();
+    private final Map<Location, Long> unstableBlocksLastAnchorCheck = new HashMap<>();
     private long fallDelayMillis = 60_000L;
     private int supportRadius = 2;
     private int topSupportRadius = 0;
@@ -44,6 +45,7 @@ public class BridgeFallsPlugin extends JavaPlugin {
     private long anchorMaxTimerNanos = 5_000_000L;
 
     private long timeToCheckTicks = 20L;
+    private long timeToCheckAnchorTicks = 20L;
     private boolean allowPlacingUnstableBlocks = false;
     private boolean fallingBlockDropItem = false;
     private boolean fallingBlockHurtEntities = true;
@@ -235,6 +237,11 @@ public class BridgeFallsPlugin extends JavaPlugin {
             for (Map.Entry<Location, Long> entry : unstableBlocks.entrySet()) {
                 entry.setValue(now);
             }
+
+            unstableBlocksLastAnchorCheck.keySet().retainAll(unstableBlocks.keySet());
+            for (Location location : unstableBlocks.keySet()) {
+                unstableBlocksLastAnchorCheck.put(location, now);
+            }
         }
 
         saveUnstableBlocks();
@@ -297,6 +304,10 @@ public class BridgeFallsPlugin extends JavaPlugin {
 
     public long getTimeToCheckTicks() {
         return timeToCheckTicks;
+    }
+
+    public long getTimeToCheckAnchorTicks() {
+        return timeToCheckAnchorTicks;
     }
 
     public boolean isAllowPlacingUnstableBlocks() {
@@ -378,7 +389,9 @@ public class BridgeFallsPlugin extends JavaPlugin {
 
         synchronized (unstableBlocks) {
             if (!unstableBlocks.containsKey(location)) {
-                unstableBlocks.put(location, System.currentTimeMillis());
+                long now = System.currentTimeMillis();
+                unstableBlocks.put(location, now);
+                unstableBlocksLastAnchorCheck.put(location, now);
                 saveUnstableBlocks();
             } else {
                 log("Attempted to add an unstable block at " + location + " but it is already marked as unstable.");
@@ -393,6 +406,7 @@ public class BridgeFallsPlugin extends JavaPlugin {
 
         synchronized (unstableBlocks) {
             if (unstableBlocks.remove(location) != null) {
+                unstableBlocksLastAnchorCheck.remove(location);
                 saveUnstableBlocks();
             }
         }
@@ -685,6 +699,12 @@ public class BridgeFallsPlugin extends JavaPlugin {
         }
         timeToCheckTicks = configuredTimeToCheck;
 
+        long configuredTimeToCheckAnchor = getConfig().getLong("time-to-check-anchor", configuredTimeToCheck);
+        if (configuredTimeToCheckAnchor < 1L) {
+            configuredTimeToCheckAnchor = 1L;
+        }
+        timeToCheckAnchorTicks = configuredTimeToCheckAnchor;
+
         allowPlacingUnstableBlocks = getConfig().getBoolean("allow-placing-unstable-blocks", false);
 
         fallingBlockDropItem = getConfig().getBoolean("falling-block-drop-item", false);
@@ -708,6 +728,7 @@ public class BridgeFallsPlugin extends JavaPlugin {
 
     private void loadUnstableBlocks() {
         unstableBlocks.clear();
+        unstableBlocksLastAnchorCheck.clear();
 
         File file = new File(getDataFolder(), "unstable-blocks.yml");
         if (!file.exists()) {
@@ -747,7 +768,9 @@ public class BridgeFallsPlugin extends JavaPlugin {
                 createdAt = now;
             }
 
-            unstableBlocks.put(new Location(Bukkit.getWorld(worldName), x, y, z), createdAt);
+            Location location = new Location(Bukkit.getWorld(worldName), x, y, z);
+            unstableBlocks.put(location, createdAt);
+            unstableBlocksLastAnchorCheck.put(location, now);
         }
     }
 
@@ -858,6 +881,8 @@ public class BridgeFallsPlugin extends JavaPlugin {
             createdAt = storedCreatedAt;
         }
 
+        long now = System.currentTimeMillis();
+
         Block block = location.getBlock();
 
         if (block.getType() == Material.AIR) {
@@ -866,13 +891,23 @@ public class BridgeFallsPlugin extends JavaPlugin {
             return;
         }
 
-        if (BridgeFallsListener.isBlockSupported(block) && BridgeFallsListener.hasAnchor(block, anchorSupportRadius)) {
+        long anchorCheckIntervalMillis = timeToCheckAnchorTicks * 50L;
+        boolean shouldCheckAnchor;
+        synchronized (unstableBlocks) {
+            Long lastAnchorCheck = unstableBlocksLastAnchorCheck.get(location);
+            shouldCheckAnchor = lastAnchorCheck == null || now - lastAnchorCheck >= anchorCheckIntervalMillis;
+            if (shouldCheckAnchor) {
+                unstableBlocksLastAnchorCheck.put(location, now);
+            }
+        }
+
+        if (shouldCheckAnchor && BridgeFallsListener.isBlockSupported(block)
+                && BridgeFallsListener.hasAnchor(block, anchorSupportRadius)) {
             removeUnstableBlockAndSave(location,
                     "Block at " + block.getLocation() + " is now supported again and removed from unstable blocks.");
             return;
         }
 
-        long now = System.currentTimeMillis();
         if (isFallingBlockEnabled() && fallDelayMillis >= 0 && now - createdAt >= fallDelayMillis) {
             if (removeUnstableBlockAndSave(location, "Block at " + block.getLocation() + " is now falling.")) {
                 BridgeFallsListener.startFalling(block);
@@ -906,6 +941,7 @@ public class BridgeFallsPlugin extends JavaPlugin {
         boolean removed;
         synchronized (unstableBlocks) {
             removed = unstableBlocks.remove(location) != null;
+            unstableBlocksLastAnchorCheck.remove(location);
         }
 
         if (removed) {

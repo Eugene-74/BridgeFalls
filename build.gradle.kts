@@ -11,7 +11,7 @@ plugins {
 }
 
 group="fr.eureur7.bridgefalls"
-version="1.0.0"
+version="1.1.1"
 description="Disable some items."
 java.sourceCompatibility = JavaVersion.VERSION_21
 var mainMinecraftVersion = "1.21.11"

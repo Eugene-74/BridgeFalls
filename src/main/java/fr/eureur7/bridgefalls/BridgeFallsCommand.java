@@ -44,6 +44,8 @@ public class BridgeFallsCommand extends BaseCommand {
         sender.sendMessage(
                 "§7/bf config fall-delay-minutes <minutes> §f- Delay before unstable blocks fall (min: 0)");
         sender.sendMessage("§7/bf config time-to-check <ticks> §f- Check interval for unstable blocks (min: 1 tick)");
+        sender.sendMessage(
+                "§7/bf config time-to-check-anchor <ticks> §f- Check interval for hasAnchor on unstable blocks (min: 1 tick)");
         sender.sendMessage("§7/bf config debug §f[true|false] §f- Toggle debug logging");
         sender.sendMessage(
                 "§7/bf config allow-placing-unstable-blocks §f[true|false] §f- Allow placing unstable blocks");
@@ -180,6 +182,42 @@ public class BridgeFallsCommand extends BaseCommand {
         Map<String, String> ph = new HashMap<>();
         ph.put("key", "time-to-check");
         ph.put("value", String.valueOf(plugin.getTimeToCheckTicks()));
+        sender.sendMessage(plugin.getMessage("command.config.number-updated", ph));
+    }
+
+    @Subcommand("config time-to-check-anchor")
+    @CommandCompletion("20|40|100|200")
+    public void onConfigTimeToCheckAnchor(CommandSender sender, String value) {
+        BridgeFallsPlugin plugin = BridgeFallsPlugin.getInstance();
+
+        long ticks;
+        try {
+            ticks = Long.parseLong(value);
+        } catch (NumberFormatException e) {
+            Map<String, String> ph = new HashMap<>();
+            ph.put("key", "time-to-check-anchor");
+            ph.put("value", value);
+            ph.put("min", "1");
+            sender.sendMessage(plugin.getMessage("command.config.number-invalid", ph));
+            return;
+        }
+
+        if (ticks < 1L) {
+            Map<String, String> ph = new HashMap<>();
+            ph.put("key", "time-to-check-anchor");
+            ph.put("value", value);
+            ph.put("min", "1");
+            sender.sendMessage(plugin.getMessage("command.config.number-invalid", ph));
+            return;
+        }
+
+        plugin.getConfig().set("time-to-check-anchor", ticks);
+        plugin.saveConfig();
+        plugin.reloadConfig();
+
+        Map<String, String> ph = new HashMap<>();
+        ph.put("key", "time-to-check-anchor");
+        ph.put("value", String.valueOf(plugin.getTimeToCheckAnchorTicks()));
         sender.sendMessage(plugin.getMessage("command.config.number-updated", ph));
     }
 
