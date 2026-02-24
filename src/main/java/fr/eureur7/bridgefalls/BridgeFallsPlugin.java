@@ -46,6 +46,8 @@ public class BridgeFallsPlugin extends JavaPlugin {
 
     private long timeToCheckTicks = 20L;
     private long timeToCheckAnchorTicks = 20L;
+    private int recheckQueueMaxSize = 4096;
+    private int recheckDrainBatchSize = 8;
     private boolean allowPlacingUnstableBlocks = false;
     private boolean fallingBlockDropItem = false;
     private boolean fallingBlockHurtEntities = true;
@@ -310,6 +312,14 @@ public class BridgeFallsPlugin extends JavaPlugin {
         return timeToCheckAnchorTicks;
     }
 
+    public int getRecheckQueueMaxSize() {
+        return recheckQueueMaxSize;
+    }
+
+    public int getRecheckDrainBatchSize() {
+        return recheckDrainBatchSize;
+    }
+
     public boolean isAllowPlacingUnstableBlocks() {
         return allowPlacingUnstableBlocks;
     }
@@ -393,8 +403,6 @@ public class BridgeFallsPlugin extends JavaPlugin {
                 unstableBlocks.put(location, now);
                 unstableBlocksLastAnchorCheck.put(location, now);
                 saveUnstableBlocks();
-            } else {
-                log("Attempted to add an unstable block at " + location + " but it is already marked as unstable.");
             }
         }
     }
@@ -704,6 +712,18 @@ public class BridgeFallsPlugin extends JavaPlugin {
             configuredTimeToCheckAnchor = 1L;
         }
         timeToCheckAnchorTicks = configuredTimeToCheckAnchor;
+
+        int configuredRecheckQueueMaxSize = getConfig().getInt("recheck-queue-max-size", 4096);
+        if (configuredRecheckQueueMaxSize < 1) {
+            configuredRecheckQueueMaxSize = 1;
+        }
+        recheckQueueMaxSize = configuredRecheckQueueMaxSize;
+
+        int configuredRecheckDrainBatchSize = getConfig().getInt("recheck-drain-batch-size", 8);
+        if (configuredRecheckDrainBatchSize < 1) {
+            configuredRecheckDrainBatchSize = 1;
+        }
+        recheckDrainBatchSize = configuredRecheckDrainBatchSize;
 
         allowPlacingUnstableBlocks = getConfig().getBoolean("allow-placing-unstable-blocks", false);
 

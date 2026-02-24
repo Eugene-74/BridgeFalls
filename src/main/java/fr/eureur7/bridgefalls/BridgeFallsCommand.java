@@ -46,6 +46,10 @@ public class BridgeFallsCommand extends BaseCommand {
         sender.sendMessage("§7/bf config time-to-check <ticks> §f- Check interval for unstable blocks (min: 1 tick)");
         sender.sendMessage(
                 "§7/bf config time-to-check-anchor <ticks> §f- Check interval for hasAnchor on unstable blocks (min: 1 tick)");
+        sender.sendMessage(
+                "§7/bf config recheck-queue-max-size <value> §f- Max queued rechecks for mass block updates (min: 1)");
+        sender.sendMessage(
+                "§7/bf config recheck-drain-batch-size <value> §f- Rechecks processed per drain cycle (min: 1)");
         sender.sendMessage("§7/bf config debug §f[true|false] §f- Toggle debug logging");
         sender.sendMessage(
                 "§7/bf config allow-placing-unstable-blocks §f[true|false] §f- Allow placing unstable blocks");
@@ -219,6 +223,20 @@ public class BridgeFallsCommand extends BaseCommand {
         ph.put("key", "time-to-check-anchor");
         ph.put("value", String.valueOf(plugin.getTimeToCheckAnchorTicks()));
         sender.sendMessage(plugin.getMessage("command.config.number-updated", ph));
+    }
+
+    @Subcommand("config recheck-queue-max-size")
+    @CommandCompletion("256|512|1024|2048|4096|8192")
+    public void onConfigRecheckQueueMaxSize(CommandSender sender, String value) {
+        handleIntConfig(sender, "recheck-queue-max-size", "recheck-queue-max-size", value, 1,
+                () -> BridgeFallsPlugin.getInstance().getRecheckQueueMaxSize());
+    }
+
+    @Subcommand("config recheck-drain-batch-size")
+    @CommandCompletion("1|2|4|8|16|32")
+    public void onConfigRecheckDrainBatchSize(CommandSender sender, String value) {
+        handleIntConfig(sender, "recheck-drain-batch-size", "recheck-drain-batch-size", value, 1,
+                () -> BridgeFallsPlugin.getInstance().getRecheckDrainBatchSize());
     }
 
     @Subcommand("config fall-delay-minutes")

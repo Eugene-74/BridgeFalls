@@ -11,6 +11,8 @@ anchor-max-time-ms: 5 # max time allowed for hasAnchor search. If exceeded, Brid
 fall-delay-minutes: 15 # 0 to instant fall (minutes)
 time-to-check: 20 # delay between placing a block and checking its stability for the first time, also used as interval for repeated checks until it falls (ticks)
 time-to-check-anchor: 200 # interval between hasAnchor checks for unstable blocks (ticks)
+recheck-queue-max-size: 4096 # maximum number of queued stability rechecks during mass block updates
+recheck-drain-batch-size: 8 # number of rechecks processed each global drain cycle
 
 # Gamemodes where BridgeFalls stability checks are disabled
 disabled-gamemodes:

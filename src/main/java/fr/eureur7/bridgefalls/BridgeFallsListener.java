@@ -1,5 +1,6 @@
 package fr.eureur7.bridgefalls;
 
+import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.Particle;
 import org.bukkit.Color;
@@ -14,6 +15,10 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.block.BlockBurnEvent;
+import org.bukkit.event.block.BlockExplodeEvent;
+import org.bukkit.event.block.BlockFadeEvent;
+import org.bukkit.event.entity.EntityExplodeEvent;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -22,9 +27,24 @@ import java.util.LinkedList;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
+import java.util.Collection;
+import java.util.Objects;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class BridgeFallsListener implements Listener {
-    @EventHandler
+    private static final int RECHECK_CELL_SIZE = 16;
+    private static final long RECHECK_DEBOUNCE_MS = 300L;
+    private static final int MAX_RECHECK_ORIGINS_PER_EVENT = 32;
+    private static final int MAX_RECHECK_TRACKED_CELLS = 30_000;
+    private static final Map<Long, Long> recentRechecksByCell = new ConcurrentHashMap<>();
+    private static final Map<Long, StabilityRecheckRequest> pendingRechecksByKey = new ConcurrentHashMap<>();
+    private static final Queue<StabilityRecheckRequest> pendingRecheckQueue = new ConcurrentLinkedQueue<>();
+    private static final AtomicBoolean recheckDrainScheduled = new AtomicBoolean(false);
+
+    @EventHandler(ignoreCancelled = true)
     public void onBlockBreak(BlockBreakEvent event) {
         if (!BridgeFallsPlugin.getInstance().isBridgeFallsEnabled()) {
             return;
@@ -36,16 +56,212 @@ public class BridgeFallsListener implements Listener {
             return;
         }
 
-        Block brokenBlock = event.getBlock();
+        scheduleStabilityRecheck(event.getBlock(), player);
+    }
 
-        BridgeFallsPlugin.getInstance().getServer().getRegionScheduler().runDelayed(
-                BridgeFallsPlugin.getInstance(),
-                brokenBlock.getLocation(),
-                task -> {
-                    int radius = BridgeFallsPlugin.getInstance().getSupportRadius();
-                    checkAndHighlightUnsupportedBlocksAround(brokenBlock, radius, player);
-                },
-                1L);
+    @EventHandler(ignoreCancelled = true)
+    public void onBlockExplode(BlockExplodeEvent event) {
+        if (!BridgeFallsPlugin.getInstance().isBridgeFallsEnabled()) {
+            return;
+        }
+
+        scheduleStabilityRecheck(event.blockList());
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    public void onEntityExplode(EntityExplodeEvent event) {
+        if (!BridgeFallsPlugin.getInstance().isBridgeFallsEnabled()) {
+            return;
+        }
+
+        scheduleStabilityRecheck(event.blockList());
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    public void onBlockBurn(BlockBurnEvent event) {
+        if (!BridgeFallsPlugin.getInstance().isBridgeFallsEnabled()) {
+            return;
+        }
+
+        scheduleStabilityRecheck(event.getBlock());
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    public void onBlockFade(BlockFadeEvent event) {
+        if (!BridgeFallsPlugin.getInstance().isBridgeFallsEnabled()) {
+            return;
+        }
+
+        scheduleStabilityRecheck(event.getBlock());
+    }
+
+    private void scheduleStabilityRecheck(Block brokenBlock) {
+        scheduleStabilityRecheck(brokenBlock, null);
+    }
+
+    private void scheduleStabilityRecheck(Collection<Block> brokenBlocks) {
+        if (brokenBlocks == null || brokenBlocks.isEmpty()) {
+            return;
+        }
+
+        int scheduled = 0;
+        for (Block brokenBlock : brokenBlocks) {
+            if (scheduled >= MAX_RECHECK_ORIGINS_PER_EVENT) {
+                break;
+            }
+
+            if (scheduleStabilityRecheck(brokenBlock, null)) {
+                scheduled++;
+            }
+        }
+
+        if (scheduled < brokenBlocks.size()) {
+            BridgeFallsPlugin.log("Throttled rechecks after mass break: scheduled=" + scheduled
+                    + " totalBroken=" + brokenBlocks.size());
+        }
+    }
+
+    private boolean scheduleStabilityRecheck(Block brokenBlock, Player player) {
+        if (brokenBlock == null) {
+            return false;
+        }
+
+        Location brokenLocation = brokenBlock.getLocation();
+        if (!shouldScheduleRecheckForLocation(brokenLocation)) {
+            return false;
+        }
+
+        BridgeFallsPlugin plugin = BridgeFallsPlugin.getInstance();
+        int maxQueueSize = plugin.getRecheckQueueMaxSize();
+        if (pendingRecheckQueue.size() >= maxQueueSize) {
+            BridgeFallsPlugin.log("Recheck queue full, dropping recheck at " + brokenLocation);
+            return false;
+        }
+
+        long key = packRecheckOrigin(brokenLocation);
+        UUID playerId = player != null ? player.getUniqueId() : null;
+        StabilityRecheckRequest request = new StabilityRecheckRequest(key, brokenLocation, playerId);
+
+        StabilityRecheckRequest existing = pendingRechecksByKey.putIfAbsent(key, request);
+        if (existing != null) {
+            return false;
+        }
+
+        pendingRecheckQueue.offer(request);
+        ensureRecheckDrainScheduled();
+        return true;
+    }
+
+    private void ensureRecheckDrainScheduled() {
+        if (!recheckDrainScheduled.compareAndSet(false, true)) {
+            return;
+        }
+
+        BridgeFallsPlugin plugin = BridgeFallsPlugin.getInstance();
+        plugin.getServer().getGlobalRegionScheduler().run(
+                plugin,
+                task -> drainQueuedStabilityRechecks());
+    }
+
+    private void drainQueuedStabilityRechecks() {
+        BridgeFallsPlugin plugin = BridgeFallsPlugin.getInstance();
+        int maxRechecksPerDrain = plugin.getRecheckDrainBatchSize();
+        int processed = 0;
+
+        while (processed < maxRechecksPerDrain) {
+            StabilityRecheckRequest request = pendingRecheckQueue.poll();
+            if (request == null) {
+                break;
+            }
+
+            pendingRechecksByKey.remove(request.key);
+
+            Location location = request.location;
+            if (location == null || location.getWorld() == null) {
+                continue;
+            }
+
+            UUID playerId = request.playerId;
+            plugin.getServer().getRegionScheduler().runDelayed(
+                    plugin,
+                    location,
+                    task -> {
+                        Player player = playerId != null ? Bukkit.getPlayer(playerId) : null;
+                        int radius = plugin.getSupportRadius();
+                        checkAndHighlightUnsupportedBlocksAround(location.getBlock(), radius, player);
+                    },
+                    1L);
+
+            processed++;
+        }
+
+        if (!pendingRecheckQueue.isEmpty()) {
+            plugin.getServer().getGlobalRegionScheduler().run(
+                    plugin,
+                    task -> drainQueuedStabilityRechecks());
+            return;
+        }
+
+        recheckDrainScheduled.set(false);
+
+        if (!pendingRecheckQueue.isEmpty()) {
+            ensureRecheckDrainScheduled();
+        }
+    }
+
+    private static long packRecheckOrigin(Location location) {
+        UUID worldId = location.getWorld().getUID();
+        int combined = Objects.hash(
+                worldId,
+                location.getBlockX(),
+                location.getBlockY(),
+                location.getBlockZ());
+        return combined & 0xFFFFFFFFL;
+    }
+
+    private static final class StabilityRecheckRequest {
+        private final long key;
+        private final Location location;
+        private final UUID playerId;
+
+        private StabilityRecheckRequest(long key, Location location, UUID playerId) {
+            this.key = key;
+            this.location = location;
+            this.playerId = playerId;
+        }
+    }
+
+    private static boolean shouldScheduleRecheckForLocation(Location location) {
+        if (location == null || location.getWorld() == null) {
+            return false;
+        }
+
+        long now = System.currentTimeMillis();
+        long cellKey = packRecheckCell(location);
+        Long last = recentRechecksByCell.get(cellKey);
+        if (last != null && now - last < RECHECK_DEBOUNCE_MS) {
+            return false;
+        }
+
+        recentRechecksByCell.put(cellKey, now);
+
+        if (recentRechecksByCell.size() > MAX_RECHECK_TRACKED_CELLS) {
+            long cutoff = now - (RECHECK_DEBOUNCE_MS * 8L);
+            recentRechecksByCell.entrySet().removeIf(entry -> entry.getValue() < cutoff);
+        }
+
+        return true;
+    }
+
+    private static long packRecheckCell(Location location) {
+        UUID worldId = location.getWorld().getUID();
+        int cellX = Math.floorDiv(location.getBlockX(), RECHECK_CELL_SIZE);
+        int cellY = Math.floorDiv(location.getBlockY(), RECHECK_CELL_SIZE);
+        int cellZ = Math.floorDiv(location.getBlockZ(), RECHECK_CELL_SIZE);
+
+        int worldHash = worldId.hashCode();
+        int combined = 31 * (31 * (31 * worldHash + cellX) + cellY) + cellZ;
+        return combined & 0xFFFFFFFFL;
     }
 
     @EventHandler
@@ -652,15 +868,18 @@ public class BridgeFallsListener implements Listener {
 
                     if (!isBlockSupported(candidate)) {
                         Location loc = candidate.getLocation();
-                        if (!alreadyUnstable.contains(loc)) {
+                        boolean isAlreadyUnstable = alreadyUnstable.contains(loc);
+                        if (!isAlreadyUnstable) {
                             newlyUnstableCount++;
                             playUnstableDenySound(loc);
+                            plugin.addUnstableBlock(loc);
+                            alreadyUnstable.add(loc);
                         }
-
-                        plugin.addUnstableBlock(loc);
                         BridgeFallsListener.showColoredOutline(candidate, BridgeFallsPlugin.defaultInstabilityColor);
 
-                        playUnstableDenySound(candidate.getLocation());
+                        if (!isAlreadyUnstable) {
+                            playUnstableDenySound(candidate.getLocation());
+                        }
                     } else {
                         if (plugin.isAlwaysStable(candidate.getType())) {
                             continue;
@@ -676,14 +895,18 @@ public class BridgeFallsListener implements Listener {
                         boolean hasAnchor = hasAnchor(candidate, anchorRadius);
                         if (!hasAnchor) {
                             Location loc = candidate.getLocation();
-                            if (!alreadyUnstable.contains(loc)) {
+                            boolean isAlreadyUnstable = alreadyUnstable.contains(loc);
+                            if (!isAlreadyUnstable) {
                                 newlyUnstableCount++;
                                 playUnstableDenySound(loc);
+                                plugin.addUnstableBlock(loc);
+                                alreadyUnstable.add(loc);
                             }
-
-                            plugin.addUnstableBlock(loc);
                             showColoredOutline(candidate, BridgeFallsPlugin.defaultInstabilityColor);
-                            playUnstableDenySound(candidate.getLocation());
+
+                            if (!isAlreadyUnstable) {
+                                playUnstableDenySound(candidate.getLocation());
+                            }
                         }
                     }
                 }
