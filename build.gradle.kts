@@ -19,7 +19,7 @@ val mvndiRemote = repositories.maven("https://repo.mvndicraft.net/repository/mav
 }
 
 group="fr.eureur7.bridgefalls"
-version="1.5.0"
+version="1.5.1"
 description="Disable some items."
 java.sourceCompatibility = JavaVersion.VERSION_21
 var mainMinecraftVersion = "1.21.11"

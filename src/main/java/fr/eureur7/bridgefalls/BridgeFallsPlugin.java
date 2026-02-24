@@ -54,6 +54,7 @@ public class BridgeFallsPlugin extends JavaPlugin {
     private boolean fallingBlockDropItem = false;
     private boolean fallingBlockHurtEntities = true;
     private boolean fallingBlockDisableDuringSiege = false;
+    private boolean wasSiegeActiveLastCheck = false;
     private FileConfiguration messagesConfig;
 
     private Color instabilityColorStart = Color.YELLOW;
@@ -959,6 +960,10 @@ public class BridgeFallsPlugin extends JavaPlugin {
             return;
         }
 
+        if (handleSiegeTransitionForTimers()) {
+            return;
+        }
+
         java.util.List<Location> locationsToCheck;
         synchronized (unstableBlocks) {
             locationsToCheck = new java.util.ArrayList<>(unstableBlocks.keySet());
@@ -975,6 +980,24 @@ public class BridgeFallsPlugin extends JavaPlugin {
             getServer().getRegionScheduler().execute(this, regionLocation,
                     () -> runUnstableCheckAtLocation(regionLocation));
         }
+    }
+
+    private boolean handleSiegeTransitionForTimers() {
+        if (!fallingBlockEnabled || !fallingBlockDisableDuringSiege) {
+            wasSiegeActiveLastCheck = false;
+            return false;
+        }
+
+        boolean isSiegeActiveNow = isSiegeActiveGlobal();
+        if (wasSiegeActiveLastCheck && !isSiegeActiveNow) {
+            log("Siege mode is no longer active, resetting unstable block timers.");
+            resetTimersForAllUnstableBlocks();
+            wasSiegeActiveLastCheck = isSiegeActiveNow;
+            return true;
+        }
+
+        wasSiegeActiveLastCheck = isSiegeActiveNow;
+        return false;
     }
 
     private void runUnstableCheckAtLocation(Location location) {
