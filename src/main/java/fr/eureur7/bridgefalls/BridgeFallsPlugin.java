@@ -40,6 +40,8 @@ public class BridgeFallsPlugin extends JavaPlugin {
     private int supportRadius = 2;
     private int topSupportRadius = 0;
     private int anchorSupportRadius = 2;
+    private int anchorSupportRadiusCheckWhenBreaking = 2;
+
     private long timeToCheckTicks = 20L;
     private boolean allowPlacingUnstableBlocks = false;
     private boolean fallingBlockDropItem = false;
@@ -284,6 +286,10 @@ public class BridgeFallsPlugin extends JavaPlugin {
         return anchorSupportRadius;
     }
 
+    public int getAnchorSupportRadiusCheckWhenBreaking() {
+        return anchorSupportRadiusCheckWhenBreaking;
+    }
+
     public long getTimeToCheckTicks() {
         return timeToCheckTicks;
     }
@@ -394,37 +400,55 @@ public class BridgeFallsPlugin extends JavaPlugin {
     }
 
     private void loadInstabilityColors() {
+        instabilityColorStart = Color.YELLOW;
+        instabilityColorMiddle = Color.ORANGE;
+        instabilityColorEnd = Color.RED;
+        defaultInstabilityColor = Color.BLUE;
+
         List<String> entries = getConfig().getStringList("instability-colors");
-        if (entries == null || entries.isEmpty()) {
-            instabilityColorStart = Color.YELLOW;
-            instabilityColorMiddle = Color.ORANGE;
-            instabilityColorEnd = Color.RED;
-
-            defaultInstabilityColor = Color.BLUE;
-            return;
-        }
-
-        if (entries.size() >= 1) {
+        if (entries != null && !entries.isEmpty() && entries.size() >= 1) {
             Color c = parseColor(entries.get(0));
             if (c != null) {
                 instabilityColorStart = c;
             }
         }
-        if (entries.size() >= 2) {
+        if (entries != null && !entries.isEmpty() && entries.size() >= 2) {
             Color c = parseColor(entries.get(1));
             if (c != null) {
                 instabilityColorMiddle = c;
             }
         }
-        if (entries.size() >= 3) {
+        if (entries != null && !entries.isEmpty() && entries.size() >= 3) {
             Color c = parseColor(entries.get(2));
             if (c != null) {
                 instabilityColorEnd = c;
             }
         }
 
-        String defaultColor = getConfig().getString("instable-color", "blue");
-        defaultInstabilityColor = parseColor(defaultColor);
+        Color configuredDefaultColor = parseConfiguredColor("instable-color");
+        if (configuredDefaultColor != null) {
+            defaultInstabilityColor = configuredDefaultColor;
+        }
+    }
+
+    private Color parseConfiguredColor(String path) {
+        Object rawValue = getConfig().get(path);
+        if (rawValue instanceof String) {
+            return parseColor((String) rawValue);
+        }
+
+        if (rawValue instanceof List<?>) {
+            for (Object item : (List<?>) rawValue) {
+                if (item instanceof String) {
+                    Color parsed = parseColor((String) item);
+                    if (parsed != null) {
+                        return parsed;
+                    }
+                }
+            }
+        }
+
+        return null;
     }
 
     public Color parseColor(String value) {
@@ -636,6 +660,13 @@ public class BridgeFallsPlugin extends JavaPlugin {
             anchorRadius = 1;
         }
         anchorSupportRadius = anchorRadius;
+
+        int anchorRadiusCheckWhenBreaking = getConfig().getInt("anchor-support-radius-check-when-breaking",
+                anchorSupportRadius);
+        if (anchorRadiusCheckWhenBreaking < 1) {
+            anchorRadiusCheckWhenBreaking = 1;
+        }
+        anchorSupportRadiusCheckWhenBreaking = anchorRadiusCheckWhenBreaking;
 
         long configuredTimeToCheck = getConfig().getLong("time-to-check", 20L);
         if (configuredTimeToCheck < 1L) {

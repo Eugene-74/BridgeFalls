@@ -17,6 +17,7 @@ import org.bukkit.event.block.BlockBreakEvent;
 
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.ArrayDeque;
 import java.util.LinkedList;
 import java.util.Map;
 import java.util.Queue;
@@ -416,6 +417,9 @@ public class BridgeFallsListener implements Listener {
         return false;
     }
 
+    private record AnchorNode(int x, int y, int z) {
+    }
+
     static boolean hasAnchor(Block block, int radius) {
         if (block == null || block.getType() == Material.AIR) {
             return false;
@@ -429,19 +433,24 @@ public class BridgeFallsListener implements Listener {
         int originY = block.getY();
         int originZ = block.getZ();
         int radiusSquared = radius * radius;
+        World world = block.getWorld();
+        if (world == null) {
+            return false;
+        }
 
-        Queue<Block> toVisit = new LinkedList<>();
-        Set<Block> visited = new HashSet<>();
+        ArrayDeque<AnchorNode> toVisit = new ArrayDeque<>();
+        Set<AnchorNode> visited = new HashSet<>();
 
-        toVisit.add(block);
-        visited.add(block);
+        AnchorNode origin = new AnchorNode(originX, originY, originZ);
+        toVisit.add(origin);
+        visited.add(origin);
 
         while (!toVisit.isEmpty()) {
-            Block current = toVisit.poll();
+            AnchorNode current = toVisit.poll();
 
-            int dx = current.getX() - originX;
-            int dy = current.getY() - originY;
-            int dz = current.getZ() - originZ;
+            int dx = current.x() - originX;
+            int dy = current.y() - originY;
+            int dz = current.z() - originZ;
 
             if ((dx * dx) + (dy * dy) + (dz * dz) > radiusSquared) {
                 return true;
@@ -454,13 +463,16 @@ public class BridgeFallsListener implements Listener {
                             continue;
                         }
 
-                        Block next = current.getRelative(offsetX, offsetY, offsetZ);
+                        int nextX = current.x() + offsetX;
+                        int nextY = current.y() + offsetY;
+                        int nextZ = current.z() + offsetZ;
 
-                        if (visited.contains(next)) {
+                        if (world.getBlockAt(nextX, nextY, nextZ).getType() == Material.AIR) {
                             continue;
                         }
 
-                        if (next.getType() == Material.AIR) {
+                        AnchorNode next = new AnchorNode(nextX, nextY, nextZ);
+                        if (visited.contains(next)) {
                             continue;
                         }
 
@@ -508,8 +520,10 @@ public class BridgeFallsListener implements Listener {
                         }
 
                         int anchorRadius = plugin.getAnchorSupportRadius();
-                        if (dx <= -anchorRadius || dx >= anchorRadius || dy <= -anchorRadius || dy >= anchorRadius
-                                || dz <= -anchorRadius || dz >= anchorRadius) {
+
+                        int distance = plugin.getAnchorSupportRadiusCheckWhenBreaking();
+                        if (dx <= -distance || dx >= distance || dy <= -distance || dy >= distance
+                                || dz <= -distance || dz >= distance) {
                             continue;
                         }
                         boolean hasAnchor = hasAnchor(candidate, anchorRadius);
@@ -539,7 +553,8 @@ public class BridgeFallsListener implements Listener {
     }
 
     public static void showColoredOutline(Block block, Color color) {
-        Particle.DustOptions dust = new Particle.DustOptions(color, 1.2F);
+        Color safeColor = color != null ? color : Color.BLUE;
+        Particle.DustOptions dust = new Particle.DustOptions(safeColor, 1.2F);
 
         World world = block.getWorld();
 

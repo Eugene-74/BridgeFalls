@@ -34,6 +34,8 @@ public class BridgeFallsCommand extends BaseCommand {
         sender.sendMessage("§7/bf config support-radius <value> §f- Set horizontal support search radius (min: 1)");
         sender.sendMessage("§7/bf config top-support-radius <value> §f- Set vertical support search radius (min: 0)");
         sender.sendMessage("§7/bf config anchor-support-radius <value> §f- Set anchor search radius (min: 1)");
+        sender.sendMessage(
+                "§7/bf config anchor-support-radius-check-when-breaking <value> §f- Set anchor check radius on block break (min: 1)");
         sender.sendMessage("");
 
         sender.sendMessage("§e=== Behavior Configuration ===");
@@ -234,6 +236,14 @@ public class BridgeFallsCommand extends BaseCommand {
     public void onConfigAnchorSupportRadius(CommandSender sender, String value) {
         handleIntConfig(sender, "anchor-support-radius", "anchor-support-radius", value, 1,
                 () -> BridgeFallsPlugin.getInstance().getAnchorSupportRadius());
+    }
+
+    @Subcommand("config anchor-support-radius-check-when-breaking")
+    @CommandCompletion("1|2|3|4|5|8")
+    public void onConfigAnchorSupportRadiusCheckWhenBreaking(CommandSender sender, String value) {
+        handleIntConfig(sender, "anchor-support-radius-check-when-breaking",
+                "anchor-support-radius-check-when-breaking", value, 1,
+                () -> BridgeFallsPlugin.getInstance().getAnchorSupportRadiusCheckWhenBreaking());
     }
 
     @Subcommand("config no-rest-vertical list")

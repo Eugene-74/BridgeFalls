@@ -3,7 +3,9 @@ debug: false
 
 support-radius: 32 # radius for checking if a block is supported by other blocks (not air) in horizontal directions
 top-support-radius: 16 # radius for checking if a block is supported by other blocks (not air) in up direction
-anchor-support-radius: 5 # radius for checking if a block is supported by an anchor block (not air) avoid floating structures
+
+anchor-support-radius-check-when-breaking: 2 # radius for checking if a block is supported by an anchor block (not air) avoid floating structures (2 is the minimum to keep a logical behavior)
+anchor-support-radius: 32 # distance for checking if a block is supported by an anchor block (not air) 
 
 fall-delay-minutes: 15 # 0 to instant fall (minutes)
 time-to-check: 20 # delay between placing a block and checking its stability for the first time, also used as interval for repeated checks until it falls (ticks)
@@ -26,7 +28,7 @@ instable-color:
 allow-placing-unstable-blocks: true # Allow players to place blocks that are not currently supported. If false, the plugin will prevent placing blocks that would be unstable.
 
 # Behavior of falling blocks (FallingBlock) created by the plugin
-falling-block: true
+falling-block: false
 falling-block-drop-item: true
 falling-block-hurt-entities: true
 
