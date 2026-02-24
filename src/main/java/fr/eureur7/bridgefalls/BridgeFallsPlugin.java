@@ -41,6 +41,7 @@ public class BridgeFallsPlugin extends JavaPlugin {
     private int topSupportRadius = 0;
     private int anchorSupportRadius = 2;
     private int anchorSupportRadiusCheckWhenBreaking = 2;
+    private long anchorMaxTimerNanos = 5_000_000L;
 
     private long timeToCheckTicks = 20L;
     private boolean allowPlacingUnstableBlocks = false;
@@ -288,6 +289,10 @@ public class BridgeFallsPlugin extends JavaPlugin {
 
     public int getAnchorSupportRadiusCheckWhenBreaking() {
         return anchorSupportRadiusCheckWhenBreaking;
+    }
+
+    public long getAnchorMaxTimerNanos() {
+        return anchorMaxTimerNanos;
     }
 
     public long getTimeToCheckTicks() {
@@ -667,6 +672,12 @@ public class BridgeFallsPlugin extends JavaPlugin {
             anchorRadiusCheckWhenBreaking = 1;
         }
         anchorSupportRadiusCheckWhenBreaking = anchorRadiusCheckWhenBreaking;
+
+        long anchorMaxTimeMs = getConfig().getLong("anchor-max-time-ms", 5L);
+        if (anchorMaxTimeMs < 0L) {
+            anchorMaxTimeMs = 0L;
+        }
+        anchorMaxTimerNanos = anchorMaxTimeMs * 1_000_000L;
 
         long configuredTimeToCheck = getConfig().getLong("time-to-check", 20L);
         if (configuredTimeToCheck < 1L) {

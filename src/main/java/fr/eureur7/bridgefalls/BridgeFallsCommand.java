@@ -36,6 +36,8 @@ public class BridgeFallsCommand extends BaseCommand {
         sender.sendMessage("§7/bf config anchor-support-radius <value> §f- Set anchor search radius (min: 1)");
         sender.sendMessage(
                 "§7/bf config anchor-support-radius-check-when-breaking <value> §f- Set anchor check radius on block break (min: 1)");
+        sender.sendMessage(
+                "§7/bf config anchor-max-time-ms <value> §f- Set max hasAnchor time before forcing anchor=true (min: 0)");
         sender.sendMessage("");
 
         sender.sendMessage("§e=== Behavior Configuration ===");
@@ -244,6 +246,42 @@ public class BridgeFallsCommand extends BaseCommand {
         handleIntConfig(sender, "anchor-support-radius-check-when-breaking",
                 "anchor-support-radius-check-when-breaking", value, 1,
                 () -> BridgeFallsPlugin.getInstance().getAnchorSupportRadiusCheckWhenBreaking());
+    }
+
+    @Subcommand("config anchor-max-time-ms")
+    @CommandCompletion("0|1|2|5|10|20|50")
+    public void onConfigAnchorMaxTimeMs(CommandSender sender, String value) {
+        BridgeFallsPlugin plugin = BridgeFallsPlugin.getInstance();
+
+        long milliseconds;
+        try {
+            milliseconds = Long.parseLong(value);
+        } catch (NumberFormatException e) {
+            Map<String, String> ph = new HashMap<>();
+            ph.put("key", "anchor-max-time-ms");
+            ph.put("value", value);
+            ph.put("min", "0");
+            sender.sendMessage(plugin.getMessage("command.config.number-invalid", ph));
+            return;
+        }
+
+        if (milliseconds < 0L) {
+            Map<String, String> ph = new HashMap<>();
+            ph.put("key", "anchor-max-time-ms");
+            ph.put("value", value);
+            ph.put("min", "0");
+            sender.sendMessage(plugin.getMessage("command.config.number-invalid", ph));
+            return;
+        }
+
+        plugin.getConfig().set("anchor-max-time-ms", milliseconds);
+        plugin.saveConfig();
+        plugin.reloadConfig();
+
+        Map<String, String> ph = new HashMap<>();
+        ph.put("key", "anchor-max-time-ms");
+        ph.put("value", String.valueOf(plugin.getConfig().getLong("anchor-max-time-ms", 5L)));
+        sender.sendMessage(plugin.getMessage("command.config.number-updated", ph));
     }
 
     @Subcommand("config no-rest-vertical list")

@@ -6,6 +6,7 @@ top-support-radius: 16 # radius for checking if a block is supported by other bl
 
 anchor-support-radius-check-when-breaking: 2 # radius for checking if a block is supported by an anchor block (not air) avoid floating structures (2 is the minimum to keep a logical behavior)
 anchor-support-radius: 64 # distance for checking if a block is supported by an anchor block (not air) 
+anchor-max-time-ms: 5 # max time allowed for hasAnchor search. If exceeded, BridgeFalls considers the block as anchored.
 
 fall-delay-minutes: 15 # 0 to instant fall (minutes)
 time-to-check: 20 # delay between placing a block and checking its stability for the first time, also used as interval for repeated checks until it falls (ticks)
