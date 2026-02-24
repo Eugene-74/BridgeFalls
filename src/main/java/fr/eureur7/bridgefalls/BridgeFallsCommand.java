@@ -53,6 +53,8 @@ public class BridgeFallsCommand extends BaseCommand {
         sender.sendMessage("§7/bf config debug §f[true|false] §f- Toggle debug logging");
         sender.sendMessage(
                 "§7/bf config allow-placing-unstable-blocks §f[true|false] §f- Allow placing unstable blocks");
+        sender.sendMessage(
+                "§7/bf config show-unstable-click-info §f[true|false] §f- Show unstable fall timer when clicking a block");
         sender.sendMessage("§7/bf config falling-block §f[enable|disable] §f- Toggle falling physics");
         sender.sendMessage(
                 "§7/bf config falling-block disable-during-siege §f[true|false] §f- Disable falling blocks during active SiegeWar battle session");
@@ -137,6 +139,12 @@ public class BridgeFallsCommand extends BaseCommand {
         handleBooleanConfig(sender, "allow-placing-unstable-blocks", "allow-placing-unstable-blocks", value);
     }
 
+    @Subcommand("config show-unstable-click-info")
+    @CommandCompletion("true|false")
+    public void onConfigShowUnstableClickInfo(CommandSender sender, @Optional String value) {
+        handleBooleanConfig(sender, "show-unstable-click-info", "show-unstable-click-info", value);
+    }
+
     @Subcommand("config falling-block drop-item")
     @CommandCompletion("true|false")
     public void onConfigFallingDropItem(CommandSender sender, @Optional String value) {
@@ -153,6 +161,7 @@ public class BridgeFallsCommand extends BaseCommand {
     @CommandCompletion("enable|disable")
     public void onConfigFallingEnabled(CommandSender sender, @Optional String value) {
         handleBooleanConfig(sender, "falling-block", "falling-block", value);
+        resetTimersForAllUnstableBlocks();
     }
 
     @Subcommand("config falling-block disable-during-siege")
@@ -771,5 +780,9 @@ public class BridgeFallsCommand extends BaseCommand {
         ph.put("key", displayKey);
         ph.put("value", canonical);
         sender.sendMessage(plugin.getMessage("command.config.list-removed", ph));
+    }
+
+    private void resetTimersForAllUnstableBlocks() {
+        BridgeFallsPlugin.getInstance().resetTimersForAllUnstableBlocks();
     }
 }

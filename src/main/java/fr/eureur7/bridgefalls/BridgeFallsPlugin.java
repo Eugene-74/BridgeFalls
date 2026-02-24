@@ -50,6 +50,7 @@ public class BridgeFallsPlugin extends JavaPlugin {
     private int recheckQueueMaxSize = 4096;
     private int recheckDrainBatchSize = 8;
     private boolean allowPlacingUnstableBlocks = false;
+    private boolean showUnstableClickInfo = true;
     private boolean fallingBlockDropItem = false;
     private boolean fallingBlockHurtEntities = true;
     private boolean fallingBlockDisableDuringSiege = false;
@@ -234,7 +235,9 @@ public class BridgeFallsPlugin extends JavaPlugin {
         resetTimersForAllUnstableBlocks();
     }
 
-    private void resetTimersForAllUnstableBlocks() {
+    public void resetTimersForAllUnstableBlocks() {
+        log("resetTimersForAllUnstableBlocks");
+
         long now = System.currentTimeMillis();
 
         synchronized (unstableBlocks) {
@@ -329,6 +332,10 @@ public class BridgeFallsPlugin extends JavaPlugin {
 
     public boolean isAllowPlacingUnstableBlocks() {
         return allowPlacingUnstableBlocks;
+    }
+
+    public boolean isShowUnstableClickInfoEnabled() {
+        return showUnstableClickInfo;
     }
 
     public boolean isFallingBlockDropItem() {
@@ -437,6 +444,35 @@ public class BridgeFallsPlugin extends JavaPlugin {
         synchronized (unstableBlocks) {
             return new HashSet<>(unstableBlocks.keySet());
         }
+    }
+
+    public boolean isUnstableBlock(Location location) {
+        if (location == null || location.getWorld() == null) {
+            return false;
+        }
+
+        synchronized (unstableBlocks) {
+            return unstableBlocks.containsKey(location);
+        }
+    }
+
+    public long getRemainingTimeBeforeFallMillis(Location location) {
+        if (location == null || location.getWorld() == null) {
+            return -1L;
+        }
+
+        long createdAt;
+        synchronized (unstableBlocks) {
+            Long storedCreatedAt = unstableBlocks.get(location);
+            if (storedCreatedAt == null) {
+                return -1L;
+            }
+            createdAt = storedCreatedAt;
+        }
+
+        long elapsed = System.currentTimeMillis() - createdAt;
+        long remaining = fallDelayMillis - elapsed;
+        return Math.max(0L, remaining);
     }
 
     private void loadInstabilityColors() {
@@ -739,6 +775,7 @@ public class BridgeFallsPlugin extends JavaPlugin {
         recheckDrainBatchSize = configuredRecheckDrainBatchSize;
 
         allowPlacingUnstableBlocks = getConfig().getBoolean("allow-placing-unstable-blocks", false);
+        showUnstableClickInfo = getConfig().getBoolean("show-unstable-click-info", true);
 
         fallingBlockDropItem = getConfig().getBoolean("falling-block-drop-item", false);
         fallingBlockHurtEntities = getConfig().getBoolean("falling-block-hurt-entities", true);
@@ -761,15 +798,6 @@ public class BridgeFallsPlugin extends JavaPlugin {
         }
 
         return !isSiegeActiveGlobal();
-    }
-
-    public void setFallingBlockEnabled(boolean enabled) {
-        boolean wasEnabled = this.fallingBlockEnabled;
-        this.fallingBlockEnabled = enabled;
-
-        if (enabled && !wasEnabled) {
-            resetTimersForAllUnstableBlocks();
-        }
     }
 
     private boolean isSiegeActiveGlobal() {

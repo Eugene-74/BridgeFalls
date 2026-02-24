@@ -18,7 +18,10 @@ import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockBurnEvent;
 import org.bukkit.event.block.BlockExplodeEvent;
 import org.bukkit.event.block.BlockFadeEvent;
+import org.bukkit.event.block.Action;
 import org.bukkit.event.entity.EntityExplodeEvent;
+import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.inventory.EquipmentSlot;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -93,6 +96,79 @@ public class BridgeFallsListener implements Listener {
         }
 
         scheduleStabilityRecheck(event.getBlock());
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    public void onPlayerInteract(PlayerInteractEvent event) {
+        BridgeFallsPlugin plugin = BridgeFallsPlugin.getInstance();
+        if (!plugin.isBridgeFallsEnabled()) {
+            return;
+        }
+
+        if (event.getHand() != EquipmentSlot.HAND) {
+            return;
+        }
+
+        Action action = event.getAction();
+        if (action != Action.RIGHT_CLICK_BLOCK && action != Action.LEFT_CLICK_BLOCK) {
+            return;
+        }
+
+        Player player = event.getPlayer();
+        if (plugin.isGamemodeDisabled(player.getGameMode())) {
+            return;
+        }
+
+        if (!plugin.isShowUnstableClickInfoEnabled()) {
+            return;
+        }
+
+        Block clickedBlock = event.getClickedBlock();
+        if (clickedBlock == null) {
+            return;
+        }
+
+        Location location = clickedBlock.getLocation();
+        if (!plugin.isUnstableBlock(location)) {
+            return;
+        }
+
+        Map<String, String> placeholders = new HashMap<>();
+        placeholders.put("block", clickedBlock.getType().name().toLowerCase());
+
+        if (!plugin.isFallingBlockEnabled()) {
+            String message = plugin.getMessage("block.click.unstable.disabled", placeholders);
+            if ("block.click.unstable.disabled".equals(message)) {
+                message = "§eThis block is unstable, but falling is currently disabled.";
+            }
+            player.sendMessage(message);
+            return;
+        }
+
+        long remainingMillis = plugin.getRemainingTimeBeforeFallMillis(location);
+        long remainingSeconds = (long) Math.ceil(remainingMillis / 1000.0D);
+
+        placeholders.put("seconds", String.valueOf(Math.max(0L, remainingSeconds)));
+        placeholders.put("time", formatDuration(remainingMillis));
+
+        String message = plugin.getMessage("block.click.unstable.remaining", placeholders);
+        if ("block.click.unstable.remaining".equals(message)) {
+            message = "§eThis unstable block will fall in about " + placeholders.get("time") + ".";
+        }
+
+        player.sendMessage(message);
+    }
+
+    private static String formatDuration(long millis) {
+        long totalSeconds = Math.max(0L, (long) Math.ceil(millis / 1000.0D));
+        long minutes = totalSeconds / 60L;
+        long seconds = totalSeconds % 60L;
+
+        if (minutes <= 0L) {
+            return seconds + "s";
+        }
+
+        return minutes + "m " + seconds + "s";
     }
 
     private void scheduleStabilityRecheck(Block brokenBlock) {

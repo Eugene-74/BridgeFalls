@@ -75,6 +75,7 @@ Config commands:
   - `/bf config time-to-check-anchor <ticks>`
   - `/bf config debug [true|false]`
   - `/bf config allow-placing-unstable-blocks [true|false]`
+  - `/bf config show-unstable-click-info [true|false]`
   - `/bf config falling-block [enable|disable]`
   - `/bf config falling-block disable-during-siege [true|false]`
   - `/bf config falling-block drop-item [true|false]`
@@ -126,6 +127,7 @@ Important keys in `config.yml`:
 - `time-to-check` (task interval in ticks)
 - `time-to-check-anchor` (interval in ticks between `hasAnchor` checks for unstable blocks)
 - `allow-placing-unstable-blocks`
+- `show-unstable-click-info` (shows remaining fall time when clicking an unstable block)
 - `falling-block`
 - `falling-block-disable-during-siege` (if `true`, `falling-block` is temporarily treated as `false` in active Towny/SiegeWar war zones)
 - `falling-block-drop-item`

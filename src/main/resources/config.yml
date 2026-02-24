@@ -30,6 +30,7 @@ instable-color:
   - blue
 
 allow-placing-unstable-blocks: true # Allow players to place blocks that are not currently supported. If false, the plugin will prevent placing blocks that would be unstable.
+show-unstable-click-info: true # Show a chat message with remaining fall time when a player clicks an unstable block.
 
 # Behavior of falling blocks (FallingBlock) created by the plugin
 falling-block: false

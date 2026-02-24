@@ -8,6 +8,8 @@ messages:
   block.place.error.no-horizontal: "No structural block is connected within {radius} blocks horizontally (current support-radius) to support this block."
   block.place.error.weak-horizontal: "The horizontally connected blocks around are not themselves properly supported vertically."
   break.made-unstable: "[RED] You made {count} block{plural} unstable within a radius of {radius} blocks (current support-radius)."
+  block.click.unstable.remaining: "[YELLOW] This unstable {block} will fall in about {time} (~{seconds}s)."
+  block.click.unstable.disabled: "[YELLOW] This {block} is unstable, but falling is currently disabled."
 
   block.place.info.block: "[YELLOW] Placed block: {block}. (support-radius={supportRadius}, top-support-radius={topSupportRadius})"
   block.place.info.direct: "[YELLOW] Direct vertical support under the block: {direct}."
