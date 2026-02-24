@@ -306,7 +306,7 @@ public class BridgeFallsListener implements Listener {
             playUnstableDenySound(player);
 
             if (plugin.isAllowPlacingUnstableBlocks()) {
-                plugin.addUnstableBlock(block.getLocation());
+                plugin.addUnstableBlock(block.getLocation(), !hasAnchor);
 
                 BridgeFallsPlugin.log("Player : " + player.getName() + " placed block " + block.getType() + " at "
                         + block.getLocation() + " witch is unstable");
@@ -872,7 +872,7 @@ public class BridgeFallsListener implements Listener {
                         if (!isAlreadyUnstable) {
                             newlyUnstableCount++;
                             playUnstableDenySound(loc);
-                            plugin.addUnstableBlock(loc);
+                            plugin.addUnstableBlock(loc, false);
                             alreadyUnstable.add(loc);
                         }
                         BridgeFallsListener.showColoredOutline(candidate, BridgeFallsPlugin.defaultInstabilityColor);
@@ -899,7 +899,7 @@ public class BridgeFallsListener implements Listener {
                             if (!isAlreadyUnstable) {
                                 newlyUnstableCount++;
                                 playUnstableDenySound(loc);
-                                plugin.addUnstableBlock(loc);
+                                plugin.addUnstableBlock(loc, true);
                                 alreadyUnstable.add(loc);
                             }
                             showColoredOutline(candidate, BridgeFallsPlugin.defaultInstabilityColor);
