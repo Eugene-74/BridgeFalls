@@ -10,14 +10,23 @@ plugins {
     id("com.modrinth.minotaur") version "2.+" // cf https://github.com/modrinth/minotaur
 }
 
+val mvndiRemote = repositories.maven("https://repo.mvndicraft.net/repository/maven-snapshots/") {
+    name = "Mvndi"
+    credentials {
+        username = project.findProperty("mvndi.user") as String? ?: System.getenv("MVNDI_MVN_USER")
+        password = project.findProperty("mvndi.key") as String? ?: System.getenv("MVNDI_MVN_KEY")
+    }
+}
+
 group="fr.eureur7.bridgefalls"
-version="1.3.0"
+version="1.4.0"
 description="Disable some items."
 java.sourceCompatibility = JavaVersion.VERSION_21
 var mainMinecraftVersion = "1.21.11"
 val supportedMinecraftVersions = "1.20 - 1.21.11"
 
 repositories {
+    mvndiRemote
     mavenCentral()
     maven("https://repo.papermc.io/repository/maven-public/")
     maven("https://jitpack.io")
@@ -25,9 +34,13 @@ repositories {
 }
 
 dependencies {
-    compileOnly("io.papermc.paper:paper-api:$mainMinecraftVersion-R0.1-SNAPSHOT")
-    implementation("org.bstats:bstats-bukkit:3.1.0")
     implementation("co.aikar:acf-paper:0.5.1-SNAPSHOT")
+    compileOnly("io.papermc.paper:paper-api:$mainMinecraftVersion-R0.1-SNAPSHOT")
+    compileOnly("com.github.TownyAdvanced:SiegeWar:2.19.3") {
+        exclude(group = "org.bukkit", module = "bukkit")
+    }
+    implementation("org.bstats:bstats-bukkit:3.1.0")
+    compileOnly("co.aikar:acf-paper:0.5.1-SNAPSHOT")
 }
 
 checkstyle {

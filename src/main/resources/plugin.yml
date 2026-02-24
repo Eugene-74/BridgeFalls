@@ -6,7 +6,7 @@ author: Eugene-74
 website: https://github.com/Eugene-74/${name}
 api-version: "$apiVersion"
 folia-supported: true
-softdepend: [Towny, SiegeWar]
+softdepend: [SiegeWar]
 permissions:
   bridgefalls.admin:
     description: "Allows use of admin commands."

@@ -55,7 +55,7 @@ public class BridgeFallsCommand extends BaseCommand {
                 "§7/bf config allow-placing-unstable-blocks §f[true|false] §f- Allow placing unstable blocks");
         sender.sendMessage("§7/bf config falling-block §f[enable|disable] §f- Toggle falling physics");
         sender.sendMessage(
-                "§7/bf config falling-block disable-during-siege §f[true|false] §f- Disable falling blocks during Towny siege");
+                "§7/bf config falling-block disable-during-siege §f[true|false] §f- Disable falling blocks during active SiegeWar battle session");
         sender.sendMessage("§7/bf config falling-block drop-item §f[true|false] §f- Falling blocks drop items");
         sender.sendMessage(
                 "§7/bf config falling-block hurt-entities §f[true|false] §f- Falling blocks damage entities");
