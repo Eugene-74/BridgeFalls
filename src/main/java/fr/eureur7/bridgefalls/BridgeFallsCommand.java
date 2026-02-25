@@ -137,6 +137,7 @@ public class BridgeFallsCommand extends BaseCommand {
     @CommandCompletion("true|false")
     public void onConfigAllowUnstable(CommandSender sender, @Optional String value) {
         handleBooleanConfig(sender, "allow-placing-unstable-blocks", "allow-placing-unstable-blocks", value);
+        resetTimersForAllUnstableBlocks();
     }
 
     @Subcommand("config show-unstable-click-info")
@@ -168,6 +169,7 @@ public class BridgeFallsCommand extends BaseCommand {
     @CommandCompletion("true|false")
     public void onConfigFallingDisableDuringSiege(CommandSender sender, @Optional String value) {
         handleBooleanConfig(sender, "falling-block-disable-during-siege", "falling-block-disable-during-siege", value);
+        resetTimersForAllUnstableBlocks();
     }
 
     @Subcommand("config time-to-check")
@@ -259,6 +261,8 @@ public class BridgeFallsCommand extends BaseCommand {
     @Subcommand("config fall-delay-minutes")
     @CommandCompletion("0|1|5|10|15|30|60")
     public void onConfigFallDelayMinutes(CommandSender sender, String value) {
+        resetTimersForAllUnstableBlocks();
+
         BridgeFallsPlugin plugin = BridgeFallsPlugin.getInstance();
 
         double minutes;
