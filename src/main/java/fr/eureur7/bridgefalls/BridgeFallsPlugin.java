@@ -802,25 +802,15 @@ public class BridgeFallsPlugin extends JavaPlugin {
     }
 
     private boolean isSiegeActiveGlobal() {
-        try {
-            if (getServer().getPluginManager().getPlugin("SiegeWar") == null
-                    || !getServer().getPluginManager().isPluginEnabled("SiegeWar")) {
-                log("SiegeWar plugin not found or not enabled, skipping siege checks.");
-                return false;
-            }
 
-            BattleSession battleSession = BattleSession.getBattleSession();
-            boolean active = battleSession != null && battleSession.isActive();
-            log("Checked SiegeWar battle session: " + (battleSession != null ? battleSession.toString() : "null")
-                    + ", active: " + active);
-            return active;
-        } catch (Throwable exception) {
-            if (getConfig().getBoolean("debug", false)) {
-                getLogger().warning("SiegeWar API not available for siege checks: " + exception.getMessage());
-            }
-
+        if (getServer().getPluginManager().getPlugin("SiegeWar") == null
+                || !getServer().getPluginManager().isPluginEnabled("SiegeWar")) {
+            log("SiegeWar plugin not found or not enabled, skipping siege checks.");
             return false;
         }
+
+        return SiegeWarHelper.isSiegeActiveGlobal();
+
     }
 
     private void loadUnstableBlocks() {
